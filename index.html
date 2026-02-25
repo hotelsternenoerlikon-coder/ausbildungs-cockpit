@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Lehrlings-Cockpit</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Arial;margin:0;background:#f6f7f9;color:#111}
+    header{background:#1f4e79;color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center}
+    main{padding:18px;max-width:1200px;margin:0 auto}
+    .card{background:#fff;border:1px solid #e6e8ee;border-radius:12px;padding:14px;margin:10px 0}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .row > *{flex:1 1 260px}
+    input,select,button,textarea{width:100%;padding:10px;border:1px solid #d5d9e2;border-radius:10px;box-sizing:border-box}
+    textarea{min-height:84px}
+    button{background:#1f4e79;color:#fff;border:none;cursor:pointer}
+    button.secondary{background:#e9eef6;color:#1f4e79}
+    button.danger{background:#b00020}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px;border-bottom:1px solid #eef0f5;text-align:left;vertical-align:top}
+    th{color:#1f4e79}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#eef2ff}
+    .muted{color:#666}
+    .hidden{display:none}
+    .right{display:flex;gap:8px;align-items:center}
+    .nav{display:flex;gap:8px;flex-wrap:wrap}
+    .nav button{width:auto;padding:8px 10px;border-radius:999px}
+    .ampel{font-size:18px}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    @media (max-width: 900px){ .grid2{grid-template-columns:1fr} }
+    .ok{color:#0a7a2f}
+    .warn{color:#9a6b00}
+    .bad{color:#b00020}
+    .small{font-size:12px}
+  </style>
+</head>
+<body>
+<header>
+  <div>
+    <b>Lehrlings-Cockpit</b> <span class="muted">Firebase + GitHub Pages</span>
+  </div>
+  <div class="right">
+    <div id="userInfo" class="muted"></div>
+    <button id="logoutBtn" class="secondary hidden">Logout</button>
+  </div>
+</header>
+
+<main>
+
+  <div id="loginCard" class="card">
+    <h3>Login</h3>
+    <div class="row">
+      <div>
+        <button id="googleBtn">Mit Google einloggen</button>
+        <div class="muted small" style="margin-top:6px">Tipp: Google ist am einfachsten. Microsoft kann später ergänzt werden.</div>
+      </div>
+      <div>
+        <button id="msBtn" class="secondary">Mit Microsoft einloggen (optional)</button>
+        <div class="muted small" style="margin-top:6px">Aktiviert nur, wenn Microsoft Provider im Firebase Projekt konfiguriert ist.</div>
+      </div>
+    </div>
+    <div id="loginMsg" class="muted" style="margin-top:10px"></div>
+
+    <hr style="border:none;border-top:1px solid #eef0f5;margin:14px 0">
+
+    <h4>Ersteinrichtung (Admin)</h4>
+    <div class="muted small">
+      Nach dem ersten Login musst du deinem Benutzer eine Rolle geben. Nutze dafür unten "Mich als Admin setzen".
+      (Danach kannst du andere Benutzer auf admin/trainer/readonly setzen.)
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div><button id="makeMeAdminBtn" class="danger">Mich als Admin setzen</button></div>
+      <div class="muted small" style="align-self:center">Nur beim ersten Mal nötig.</div>
+    </div>
+    <div id="adminMsg" class="muted" style="margin-top:8px"></div>
+  </div>
+
+  <div id="app" class="hidden">
+    <div class="card">
+      <div class="nav">
+        <button class="secondary" data-page="dashboard">Dashboard</button>
+        <button class="secondary" data-page="learners">Lernende</button>
+        <button class="secondary" data-page="reports">Lernberichte</button>
+        <button class="secondary" data-page="qv">QV</button>
+        <button class="secondary" data-page="schedule">Einsatzplanung</button>
+        <button class="secondary" data-page="admin">Admin</button>
+      </div>
+      <div class="muted small" style="margin-top:8px">Rolle: <span id="roleLabel" class="pill"></span></div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="page-dashboard" class="card">
+      <h3>Dashboard (HOKO)</h3>
+      <div id="dashboardBox" class="muted">Lade…</div>
+    </div>
+
+    <!-- Learners -->
+    <div id="page-learners" class="card hidden">
+      <h3>Lernende</h3>
+      <div class="row">
+        <div><button id="refreshLearnersBtn" class="secondary">Aktualisieren</button></div>
+        <div><button id="seedDefaultsBtn" class="secondary">Standarddaten anlegen (3 HOKO + 1 Koch + Reports + QV)</button></div>
+      </div>
+
+      <div id="learnersBox" style="margin-top:10px"></div>
+
+      <h4 style="margin-top:16px">Neue Lernende</h4>
+      <div class="row">
+        <div><input id="ln_no" placeholder="Lernende_ID (z.B. 1)" /></div>
+        <div><input id="ln_name" placeholder="Name" /></div>
+        <div>
+          <select id="ln_prof">
+            <option value="HOKO">HOKO</option>
+            <option value="Koch EFZ (verkürzt, nach EBA)">Koch EFZ (verkürzt, nach EBA)</option>
+          </select>
+        </div>
+        <div><input id="ln_year" placeholder="Lehrjahr (1-3)" /></div>
+        <div><input id="ln_work" placeholder="Pensum (%)" /></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div><input id="ln_trainer" placeholder="Berufsbildner/in (optional)" /></div>
+        <div><input id="ln_start" placeholder="Startdatum (YYYY-MM-DD, optional)" /></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div><textarea id="ln_notes" placeholder="Notizen (optional)"></textarea></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div><button id="addLearnerBtn">Speichern</button></div>
+      </div>
+      <div id="learnerMsg" class="muted" style="margin-top:8px"></div>
+    </div>
+
+    <!-- Reports -->
+    <div id="page-reports" class="card hidden">
+      <h3>Lernberichte (HOKO)</h3>
+      <div class="row">
+        <div>
+          <label class="small muted">Lernende wählen</label>
+          <select id="repLearnerSelect"></select>
+        </div>
+        <div>
+          <label class="small muted">Status Filter</label>
+          <select id="repStatusFilter">
+            <option value="">Alle</option>
+            <option>Offen</option>
+            <option>Zugeteilt</option>
+            <option>Eingereicht</option>
+            <option>Abgehakt</option>
+          </select>
+        </div>
+        <div style="align-self:end"><button id="loadReportsBtn" class="secondary">Laden</button></div>
+      </div>
+
+      <div id="reportsBox" style="margin-top:10px"></div>
+    </div>
+
+    <!-- QV -->
+    <div id="page-qv" class="card hidden">
+      <h3>QV Tasks (HOKO)</h3>
+      <div class="row">
+        <div>
+          <label class="small muted">Lernende wählen</label>
+          <select id="qvLearnerSelect"></select>
+        </div>
+        <div style="align-self:end"><button id="loadQvBtn" class="secondary">Laden</button></div>
+      </div>
+      <div id="qvBox" style="margin-top:10px"></div>
+    </div>
+
+    <!-- Schedule -->
+    <div id="page-schedule" class="card hidden">
+      <h3>Einsatzplanung</h3>
+      <div class="row">
+        <div><input id="kwInput" placeholder="KW (z.B. 12)" /></div>
+        <div><button id="loadScheduleBtn" class="secondary">Laden</button></div>
+      </div>
+
+      <div id="scheduleBox" style="margin-top:10px"></div>
+
+      <h4 style="margin-top:14px">Neuer Eintrag</h4>
+      <div class="row">
+        <div>
+          <label class="small muted">Lernende</label>
+          <select id="schLearnerSelect"></select>
+        </div>
+        <div><input id="schDept" placeholder="Abteilung (z.B. Réception)" /></div>
+        <div><input id="schShift" placeholder="Schicht (z.B. Früh)" /></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div><input id="schFrom" placeholder="Von (YYYY-MM-DD, optional)" /></div>
+        <div><input id="schTo" placeholder="Bis (YYYY-MM-DD, optional)" /></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div><input id="schFocus" placeholder="Fokus (z.B. HKB 1 / HK 1.4)" /></div>
+        <div><input id="schComment" placeholder="Kommentar (optional)" /></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div><button id="addScheduleBtn">Speichern</button></div>
+      </div>
+      <div id="scheduleMsg" class="muted" style="margin-top:8px"></div>
+    </div>
+
+    <!-- Admin -->
+    <div id="page-admin" class="card hidden">
+      <h3>Admin</h3>
+      <div class="muted small">Hier kannst du Benutzerrollen setzen. Du brauchst dafür admin-Rechte.</div>
+      <div class="row" style="margin-top:10px">
+        <div><input id="setRoleUid" placeholder="UID (Benutzer-ID)" /></div>
+        <div>
+          <select id="setRoleValue">
+            <option value="admin">admin</option>
+            <option value="trainer">trainer</option>
+            <option value="readonly">readonly</option>
+          </select>
+        </div>
+        <div><button id="setRoleBtn" class="danger">Rolle setzen</button></div>
+      </div>
+      <div class="muted small" style="margin-top:8px">
+        UID findest du, indem sich die Person einmal einloggt und dir die UID aus der Browser-Konsole oder aus dem user-doc zeigt (wir zeigen sie unten an).
+      </div>
+      <div id="adminPanelBox" style="margin-top:10px"></div>
+    </div>
+
+  </div>
+</main>
+
+<script type="module">
+  // Firebase SDK (CDN, modular)
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+  import {
+    getAuth, onAuthStateChanged, GoogleAuthProvider, OAuthProvider,
+    signInWithPopup, signOut
+  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+  import {
+    getFirestore, doc, getDoc, setDoc, updateDoc,
+    collection, addDoc, getDocs, query, where, orderBy, limit
+  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+  // ========= 1) HIER firebaseConfig einsetzen =========
+  const firebaseConfig = {
+    apiKey: "REPLACE_ME",
+    authDomain: "REPLACE_ME",
+    projectId: "REPLACE_ME",
+    storageBucket: "REPLACE_ME",
+    messagingSenderId: "REPLACE_ME",
+    appId: "REPLACE_ME"
+  };
+  // ====================================================
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // UI helpers
+  const $ = (id) => document.getElementById(id);
+  const show = (id, yes) => $(id).classList.toggle("hidden", !yes);
+  const setText = (id, txt) => $(id).textContent = txt || "";
+  const pages = ["dashboard","learners","reports","qv","schedule","admin"];
+  function showPage(name){
+    for(const p of pages) show("page-"+p, p===name);
+  }
+
+  // State
+  let currentUser = null;
+  let myRole = null;
+  let learnersCache = [];
+
+  function ampel(openReports, openQv){
+    const sum = (openReports||0) + (openQv||0);
+    if(sum >= 3) return "🔴";
+    if(sum >= 1) return "🟡";
+    return "🟢";
+  }
+
+  async function getMyUserDoc(uid){
+    const ref = doc(db, "users", uid);
+    const snap = await getDoc(ref);
+    return { ref, snap };
+  }
+
+  async function ensureUserDoc(uid, email){
+    const { ref, snap } = await getMyUserDoc(uid);
+    if(!snap.exists()){
+      await setDoc(ref, { email, role: "readonly" });
+    }
+    const snap2 = await getDoc(ref);
+    return snap2.data();
+  }
+
+  async function refreshRoleUI(){
+    if(!currentUser){ myRole=null; return; }
+    const data = await ensureUserDoc(currentUser.uid, currentUser.email);
+    myRole = data.role || "readonly";
+    setText("roleLabel", myRole);
+    setText("userInfo", `${currentUser.email} (${myRole})`);
+    $("logoutBtn").classList.remove("hidden");
+  }
+
+  async function loadLearners(){
+    const qy = query(collection(db, "learners"), orderBy("learnerNo", "asc"));
+    const snap = await getDocs(qy);
+    learnersCache = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    renderLearners();
+    fillLearnerSelects();
+  }
+
+  function renderLearners(){
+    const box = $("learnersBox");
+    if(!learnersCache.length){
+      box.innerHTML = `<div class="muted">Keine Lernenden erfasst.</div>`;
+      return;
+    }
+    box.innerHTML = `
+      <table>
+        <thead><tr><th>ID</th><th>Name</th><th>Beruf</th><th>Lehrjahr</th><th>Pensum</th></tr></thead>
+        <tbody>
+          ${learnersCache.map(l=>`
+            <tr>
+              <td><span class="pill">${l.learnerNo}</span></td>
+              <td>${escapeHtml(l.name)}</td>
+              <td>${escapeHtml(l.profession)}</td>
+              <td>${l.year ?? ""}</td>
+              <td>${l.workloadPct ?? ""}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function fillLearnerSelects(){
+    const opts = learnersCache.map(l => `<option value="${l.id}">${l.learnerNo} – ${escapeHtml(l.name)} (${escapeHtml(l.profession)})</option>`).join("");
+    $("repLearnerSelect").innerHTML = `<option value="">– wählen –</option>` + opts;
+    $("qvLearnerSelect").innerHTML = `<option value="">– wählen –</option>` + opts;
+    $("schLearnerSelect").innerHTML = `<option value="">– wählen –</option>` + opts;
+  }
+
+  async function loadDashboard(){
+    // Dashboard: für HOKO je Lernende offene Reports + offene QV
+    const hokoLearners = learnersCache.filter(l => l.profession === "HOKO");
+    if(!hokoLearners.length){
+      $("dashboardBox").innerHTML = `<div class="muted">Noch keine HOKO Lernenden erfasst.</div>`;
+      return;
+    }
+
+    const rows = [];
+    for(const l of hokoLearners){
+      const repQ = query(collection(db, "learningReports"),
+        where("learnerId","==", l.id),
+        where("status","!=", "Abgehakt")
+      );
+      // Firestore hat Einschränkungen bei != + orderBy; wir machen simpel: alle Reports holen (kleine Datenmenge)
+      const repAll = await getDocs(query(collection(db,"learningReports"), where("learnerId","==", l.id)));
+      const openReports = repAll.docs.map(d=>d.data()).filter(x=>x.status !== "Abgehakt").length;
+
+      const qvAll = await getDocs(query(collection(db,"qvTasks"), where("learnerId","==", l.id)));
+      const openQv = qvAll.docs.map(d=>d.data()).filter(x=>!x.doneAt).length;
+
+      rows.push({ learnerNo:l.learnerNo, name:l.name, openReports, openQv });
+    }
+
+    $("dashboardBox").innerHTML = `
+      <table>
+        <thead><tr><th>Lernende</th><th>Offene Lernberichte</th><th>Offene QV-Tasks</th><th>Ampel</th></tr></thead>
+        <tbody>
+          ${rows.map(r=>`
+            <tr>
+              <td><b>${r.learnerNo}</b> – ${escapeHtml(r.name)}</td>
+              <td>${r.openReports}</td>
+              <td>${r.openQv}</td>
+              <td class="ampel">${ampel(r.openReports, r.openQv)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  async function addLearner(){
+    if(!canWrite()){
+      setText("learnerMsg", "Keine Berechtigung (readonly).");
+      return;
+    }
+    const learnerNo = Number($("ln_no").value.trim());
+    const name = $("ln_name").value.trim();
+    const profession = $("ln_prof").value;
+    const year = $("ln_year").value.trim() ? Number($("ln_year").value.trim()) : null;
+    const workloadPct = $("ln_work").value.trim() ? Number($("ln_work").value.trim()) : null;
+    const trainerName = $("ln_trainer").value.trim() || null;
+    const startDate = $("ln_start").value.trim() || null;
+    const notes = $("ln_notes").value.trim() || null;
+
+    if(!learnerNo || !name){
+      setText("learnerMsg", "Bitte Lernende_ID und Name ausfüllen.");
+      return;
+    }
+
+    await addDoc(collection(db,"learners"), {
+      learnerNo, name, profession,
+      year, workloadPct, trainerName, startDate, notes,
+      active: true,
+      createdAt: new Date().toISOString()
+    });
+
+    setText("learnerMsg", "Gespeichert.");
+    await loadLearners();
+    await loadDashboard();
+  }
+
+  function canWrite(){
+    return myRole === "admin" || myRole === "trainer";
+  }
+  function isAdmin(){
+    return myRole === "admin";
+  }
+
+  async function seedDefaults(){
+    if(!canWrite()){
+      alert("Keine Berechtigung (readonly).");
+      return;
+    }
+
+    // 3 HOKO + 1 Koch
+    const defaults = [
+      { learnerNo:1, name:"HOKO Lernende 1", profession:"HOKO", year:1, workloadPct:100 },
+      { learnerNo:2, name:"HOKO Lernende 2", profession:"HOKO", year:2, workloadPct:100 },
+      { learnerNo:3, name:"HOKO Lernende 3", profession:"HOKO", year:3, workloadPct:100 },
+      { learnerNo:4, name:"Koch Lernende 1", profession:"Koch EFZ (verkürzt, nach EBA)", year:1, workloadPct:100 }
+    ];
+
+    // existing learners check by learnerNo (small data => fetch all)
+    await loadLearners();
+    const existingNos = new Set(learnersCache.map(l=>l.learnerNo));
+
+    // Create missing learners
+    const createdMap = new Map(); // learnerNo -> docId
+    for(const d of defaults){
+      if(existingNos.has(d.learnerNo)) continue;
+      const ref = await addDoc(collection(db,"learners"), { ...d, createdAt:new Date().toISOString(), active:true });
+      createdMap.set(d.learnerNo, ref.id);
+    }
+
+    // reload to get ids
+    await loadLearners();
+
+    // Seed reports + qv for HOKO learners
+    const reportDefaults = [
+      [1, "Empathisch kommunizieren", 1],
+      [2, "Nachhaltig denken (Hauswirtschaft)", 2],
+      [3, "Gästeorientiert verpflegen (Küche)", 3],
+      [4, "Gästeorientiert verpflegen (Restaurant)", 4],
+      [5, "Nachhaltig denken (Réception)", 5],
+      [6, "Empathisch kommunizieren", 6],
+      [7, "Empathisch kommunizieren", 6],
+      [8, "Empathisch kommunizieren", 6],
+      [9, "Strukturiert organisieren & empathisch kommunizieren", 6],
+      [10, "Mein Blick zurück", 6]
+    ];
+
+    const qvDefaults = [
+      ["VPA", "Simulation 1 (Teilprüfung)", "3 Monate vor QV"],
+      ["VPA", "Simulation 2 (komplett)", "6–8 Wochen vor QV"],
+      ["Fachgespräch", "Training (30–40 Min)", "laufend"],
+      ["Berufskenntnisse", "Closed-book Training (60 Min)", "laufend"],
+      ["Berufskenntnisse", "Open-book Training (120 Min)", "laufend"],
+      ["Dokumente", "Lerndokumentation vollständig", "2 Wochen vor QV"]
+    ];
+
+    for(const l of learnersCache.filter(x=>x.profession==="HOKO")){
+      // reports: check existing
+      const repSnap = await getDocs(query(collection(db,"learningReports"), where("learnerId","==", l.id)));
+      const existing = new Set(repSnap.docs.map(d=>d.data().reportNo));
+      for(const [reportNo, title, recommendedSemester] of reportDefaults){
+        if(existing.has(reportNo)) continue;
+        await addDoc(collection(db,"learningReports"), {
+          learnerId: l.id, reportNo, title, recommendedSemester,
+          status: "Offen",
+          assignedAt: null, submittedAt: null, approvedAt: null,
+          comment: "",
+          createdAt: new Date().toISOString()
+        });
+      }
+
+      // qv tasks: if none, seed
+      const qvSnap = await getDocs(query(collection(db,"qvTasks"), where("learnerId","==", l.id), limit(1)));
+      if(qvSnap.empty){
+        for(const [area, task, recommendedBy] of qvDefaults){
+          await addDoc(collection(db,"qvTasks"), {
+            learnerId: l.id, area, task, recommendedBy,
+            doneAt: null, resultNote: "", nextStep: "",
+            createdAt: new Date().toISOString()
+          });
+        }
+      }
+    }
+
+    alert("OK – Standarddaten angelegt (sofern fehlend).");
+    await loadDashboard();
+  }
+
+  async function loadReports(){
+    const learnerId = $("repLearnerSelect").value;
+    const statusFilter = $("repStatusFilter").value;
+    if(!learnerId){
+      $("reportsBox").innerHTML = `<div class="muted">Bitte Lernende wählen.</div>`;
+      return;
+    }
+    const snap = await getDocs(query(collection(db,"learningReports"), where("learnerId","==", learnerId)));
+    let rows = snap.docs.map(d=>({ id:d.id, ...d.data() })).sort((a,b)=>a.reportNo-b.reportNo);
+    if(statusFilter) rows = rows.filter(r=>r.status===statusFilter);
+
+    if(!rows.length){
+      $("reportsBox").innerHTML = `<div class="muted">Keine Lernberichte gefunden.</div>`;
+      return;
+    }
+
+    const can = canWrite();
+    $("reportsBox").innerHTML = `
+      <table>
+        <thead><tr>
+          <th>Nr</th><th>Titel</th><th>Sem</th><th>Status</th><th>Zugeteilt</th><th>Eingereicht</th><th>Abgehakt</th><th>Kommentar</th><th></th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(r=>`
+            <tr>
+              <td><b>${r.reportNo}</b></td>
+              <td>${escapeHtml(r.title)}</td>
+              <td>${r.recommendedSemester ?? ""}</td>
+              <td>
+                ${can ? `
+                  <select data-rid="${r.id}" data-k="status">
+                    ${["Offen","Zugeteilt","Eingereicht","Abgehakt"].map(s=>`<option ${s===r.status?"selected":""}>${s}</option>`).join("")}
+                  </select>
+                ` : `<span class="pill">${r.status}</span>`}
+              </td>
+              <td>${can ? `<input data-rid="${r.id}" data-k="assignedAt" placeholder="YYYY-MM-DD" value="${r.assignedAt ?? ""}">` : (r.assignedAt ?? "")}</td>
+              <td>${can ? `<input data-rid="${r.id}" data-k="submittedAt" placeholder="YYYY-MM-DD" value="${r.submittedAt ?? ""}">` : (r.submittedAt ?? "")}</td>
+              <td>${can ? `<input data-rid="${r.id}" data-k="approvedAt" placeholder="YYYY-MM-DD" value="${r.approvedAt ?? ""}">` : (r.approvedAt ?? "")}</td>
+              <td>${can ? `<input data-rid="${r.id}" data-k="comment" value="${escapeAttr(r.comment ?? "")}">` : escapeHtml(r.comment ?? "")}</td>
+              <td>${can ? `<button class="secondary" data-save="${r.id}">Speichern</button>` : ""}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+      <div class="muted small" style="margin-top:8px">Hinweis: Speicherung pro Zeile über "Speichern".</div>
+    `;
+
+    // bind save buttons
+    document.querySelectorAll("[data-save]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const id = btn.getAttribute("data-save");
+        const fields = {};
+        document.querySelectorAll(`[data-rid="${id}"]`).forEach(el=>{
+          const k = el.getAttribute("data-k");
+          fields[k] = el.value.trim() || null;
+        });
+        // status should not be null
+        if(fields.status === null) fields.status = "Offen";
+        await updateDoc(doc(db,"learningReports", id), fields);
+        await loadDashboard();
+        alert("Gespeichert.");
+      });
+    });
+  }
+
+  async function loadQv(){
+    const learnerId = $("qvLearnerSelect").value;
+    if(!learnerId){
+      $("qvBox").innerHTML = `<div class="muted">Bitte Lernende wählen.</div>`;
+      return;
+    }
+    const snap = await getDocs(query(collection(db,"qvTasks"), where("learnerId","==", learnerId)));
+    const rows = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+
+    if(!rows.length){
+      $("qvBox").innerHTML = `<div class="muted">Keine QV Tasks gefunden.</div>`;
+      return;
+    }
+
+    const can = canWrite();
+    $("qvBox").innerHTML = `
+      <table>
+        <thead><tr><th>Bereich</th><th>Task</th><th>Empfohlen</th><th>Erledigt am</th><th>Notiz</th><th>Nächster Schritt</th><th></th></tr></thead>
+        <tbody>
+          ${rows.map(r=>`
+            <tr>
+              <td>${escapeHtml(r.area)}</td>
+              <td>${escapeHtml(r.task)}</td>
+              <td>${escapeHtml(r.recommendedBy ?? "")}</td>
+              <td>${can ? `<input data-qid="${r.id}" data-k="doneAt" placeholder="YYYY-MM-DD" value="${r.doneAt ?? ""}">` : (r.doneAt ?? "")}</td>
+              <td>${can ? `<input data-qid="${r.id}" data-k="resultNote" value="${escapeAttr(r.resultNote ?? "")}">` : escapeHtml(r.resultNote ?? "")}</td>
+              <td>${can ? `<input data-qid="${r.id}" data-k="nextStep" value="${escapeAttr(r.nextStep ?? "")}">` : escapeHtml(r.nextStep ?? "")}</td>
+              <td>${can ? `<button class="secondary" data-qsave="${r.id}">Speichern</button>` : ""}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+
+    document.querySelectorAll("[data-qsave]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const id = btn.getAttribute("data-qsave");
+        const fields = {};
+        document.querySelectorAll(`[data-qid="${id}"]`).forEach(el=>{
+          const k = el.getAttribute("data-k");
+          fields[k] = el.value.trim() || null;
+        });
+        await updateDoc(doc(db,"qvTasks", id), fields);
+        await loadDashboard();
+        alert("Gespeichert.");
+      });
+    });
+  }
+
+  async function loadSchedule(){
+    const kw = $("kwInput").value.trim();
+    if(!kw){
+      $("scheduleBox").innerHTML = `<div class="muted">Bitte KW eingeben.</div>`;
+      return;
+    }
+    const snap = await getDocs(query(collection(db,"weeklyAssignments"), where("kw","==", Number(kw))));
+    const rows = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+
+    if(!rows.length){
+      $("scheduleBox").innerHTML = `<div class="muted">Keine Einträge für KW ${escapeHtml(kw)}.</div>`;
+      return;
+    }
+
+    // map learner names
+    const learnerMap = new Map(learnersCache.map(l=>[l.id, l]));
+    rows.sort((a,b)=>{
+      const la = learnerMap.get(a.learnerId)?.learnerNo ?? 999;
+      const lb = learnerMap.get(b.learnerId)?.learnerNo ?? 999;
+      return la-lb;
+    });
+
+    $("scheduleBox").innerHTML = `
+      <table>
+        <thead><tr><th>Lernende</th><th>Abteilung</th><th>Schicht</th><th>Von</th><th>Bis</th><th>Fokus</th><th>Kommentar</th></tr></thead>
+        <tbody>
+          ${rows.map(r=>{
+            const l = learnerMap.get(r.learnerId);
+            const name = l ? `${l.learnerNo} – ${l.name}` : "(unbekannt)";
+            return `
+              <tr>
+                <td>${escapeHtml(name)}</td>
+                <td>${escapeHtml(r.department)}</td>
+                <td>${escapeHtml(r.shift)}</td>
+                <td>${escapeHtml(r.from ?? "")}</td>
+                <td>${escapeHtml(r.to ?? "")}</td>
+                <td>${escapeHtml(r.focus ?? "")}</td>
+                <td>${escapeHtml(r.comment ?? "")}</td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  async function addSchedule(){
+    if(!canWrite()){
+      setText("scheduleMsg", "Keine Berechtigung (readonly).");
+      return;
+    }
+    const kw = Number($("kwInput").value.trim());
+    const learnerId = $("schLearnerSelect").value;
+    const department = $("schDept").value.trim();
+    const shift = $("schShift").value.trim();
+    const from = $("schFrom").value.trim() || null;
+    const to = $("schTo").value.trim() || null;
+    const focus = $("schFocus").value.trim() || null;
+    const comment = $("schComment").value.trim() || null;
+
+    if(!kw || !learnerId || !department || !shift){
+      setText("scheduleMsg", "Bitte KW, Lernende, Abteilung und Schicht ausfüllen.");
+      return;
+    }
+
+    await addDoc(collection(db,"weeklyAssignments"), {
+      kw, learnerId, department, shift, from, to, focus, comment,
+      createdAt: new Date().toISOString()
+    });
+
+    setText("scheduleMsg", "Gespeichert.");
+    await loadSchedule();
+  }
+
+  async function makeMeAdmin(){
+    if(!currentUser){
+      setText("adminMsg", "Bitte zuerst einloggen.");
+      return;
+    }
+    // Wichtig: In Production Rules ist update nur Admin erlaubt.
+    // Daher: Für die allererste Einrichtung musst du Rules kurz offen lassen ODER
+    // du setzt initial role manuell in Firestore Console.
+    //
+    // Praktischer Ablauf:
+    // 1) Nach erstem Login entsteht users/{uid} mit readonly.
+    // 2) Du gehst in Firestore Console und setzt role = admin.
+    //
+    // Diese Funktion ist als "Hilfsbutton" gedacht, wenn du die users-Regel temporär lockerst.
+    try{
+      const ref = doc(db,"users", currentUser.uid);
+      await updateDoc(ref, { role: "admin" });
+      setText("adminMsg", "OK – Rolle wurde auf admin gesetzt.");
+      await refreshRoleUI();
+    }catch(e){
+      setText("adminMsg", "Konnte Rolle nicht setzen (Rules blockieren). Tipp: In Firestore Console users/{uid} role manuell auf admin setzen.");
+    }
+  }
+
+  async function setRoleForUid(){
+    if(!isAdmin()){
+      alert("Nur Admin darf Rollen setzen.");
+      return;
+    }
+    const uid = $("setRoleUid").value.trim();
+    const role = $("setRoleValue").value;
+    if(!uid) return;
+
+    await setDoc(doc(db,"users", uid), { role }, { merge:true });
+    alert("OK – Rolle gesetzt.");
+    await renderAdminPanel();
+  }
+
+  async function renderAdminPanel(){
+    if(!currentUser){
+      $("adminPanelBox").innerHTML = "";
+      return;
+    }
+    // Zeige eigenen User (UID) an
+    const data = await ensureUserDoc(currentUser.uid, currentUser.email);
+    $("adminPanelBox").innerHTML = `
+      <div class="card" style="border-style:dashed">
+        <div><b>Dein Benutzer</b></div>
+        <div class="small muted">UID: <span class="pill">${escapeHtml(currentUser.uid)}</span></div>
+        <div class="small muted">E-Mail: ${escapeHtml(currentUser.email)}</div>
+        <div class="small muted">Rolle: ${escapeHtml(data.role || "readonly")}</div>
+      </div>
+    `;
+  }
+
+  // Auth buttons
+  $("googleBtn").addEventListener("click", async ()=>{
+    setText("loginMsg","");
+    const prov = new GoogleAuthProvider();
+    await signInWithPopup(auth, prov);
+  });
+
+  $("msBtn").addEventListener("click", async ()=>{
+    setText("loginMsg","");
+    // Microsoft provider (optional): funktioniert nur wenn in Firebase Auth aktiviert + Azure korrekt gesetzt
+    const prov = new OAuthProvider("microsoft.com");
+    await signInWithPopup(auth, prov);
+  });
+
+  $("logoutBtn").addEventListener("click", async ()=>{
+    await signOut(auth);
+  });
+
+  // Nav
+  document.querySelectorAll(".nav button[data-page]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      showPage(btn.getAttribute("data-page"));
+    });
+  });
+
+  // Actions
+  $("refreshLearnersBtn").addEventListener("click", async ()=>{ await loadLearners(); await loadDashboard(); });
+  $("addLearnerBtn").addEventListener("click", addLearner);
+  $("seedDefaultsBtn").addEventListener("click", seedDefaults);
+  $("loadReportsBtn").addEventListener("click", loadReports);
+  $("loadQvBtn").addEventListener("click", loadQv);
+  $("loadScheduleBtn").addEventListener("click", loadSchedule);
+  $("addScheduleBtn").addEventListener("click", addSchedule);
+  $("makeMeAdminBtn").addEventListener("click", makeMeAdmin);
+  $("setRoleBtn").addEventListener("click", setRoleForUid);
+
+  // Auth state
+  onAuthStateChanged(auth, async (u)=>{
+    currentUser = u;
+    if(!u){
+      show("loginCard", true);
+      show("app", false);
+      $("logoutBtn").classList.add("hidden");
+      setText("userInfo","");
+      myRole = null;
+      return;
+    }
+
+    show("loginCard", false);
+    show("app", true);
+
+    await refreshRoleUI();
+    await renderAdminPanel();
+    await loadLearners();
+    await loadDashboard();
+
+    // default page
+    showPage("dashboard");
+  });
+
+  // Utils: escaping
+  function escapeHtml(s){
+    return String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m]));
+  }
+  function escapeAttr(s){ return escapeHtml(s).replace(/"/g,"&quot;"); }
+</script>
+</body>
+</html>
