@@ -1190,6 +1190,27 @@ document.getElementById('auth-pw').addEventListener('keydown', e => { if(e.key==
 document.querySelectorAll('.modal-overlay').forEach(o =>
   o.addEventListener('click', e => { if(e.target===o) o.classList.remove('open'); })
 );
+
+// ════════════════════════════════════════════════════════════
+// WINDOW EXPORTS — nötig weil type="module" onclick-Handler
+// keinen Zugriff auf Funktionen im Modul-Scope erlaubt
+// ════════════════════════════════════════════════════════════
+Object.assign(window, {
+  login, register, logout,
+  showTab, selectL,
+  openModal, closeModal,
+  toggleLZ, toggleLZList,
+  openNewBericht, showBerichtDetail,
+  saveBericht, visiereBericht, loescheBericht,
+  uploadAtt, dropFiles, deleteAttachment,
+  setStar, generateBB,
+  changeWeek,
+  saveApiKey, qAsk, kiSend, kiKey, kiResize,
+  addLehrling, deleteLehrling,
+  exportBackup, importBackup,
+  renderDBStatus,
+  saveBewertungen: async () => { await saveBewertungen(); toast('✓ Gespeichert'); }
+});
 </script>
 
 <style>
@@ -1563,7 +1584,7 @@ textarea.fi{min-height:64px;resize:vertical;}
       <textarea class="fi" id="bb-bem" placeholder="Stärken, Entwicklungsfelder, besondere Leistungen..."></textarea>
       <div style="display:flex;gap:8px;margin-top:12px;">
         <button class="btn btn-gold" onclick="generateBB()">📋 Bericht generieren</button>
-        <button class="btn btn-out" onclick="saveBewertungen();toast('✓ Gespeichert')">💾 Speichern</button>
+        <button class="btn btn-out" onclick="window.saveBewertungen()">💾 Speichern</button>
       </div>
     </div>
     <div class="card">
