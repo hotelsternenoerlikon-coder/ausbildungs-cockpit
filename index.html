@@ -4,21 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Ausbildungs-Cockpit | Hotel-KoFa EFZ</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
-
-<!-- Firebase SDK -->
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, deleteDoc, query, where, serverTimestamp }
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, deleteDoc, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 
-// ════════════════════════════════════════════════════════════
-// FIREBASE CONFIG — ersetze mit deinen Werten aus Firebase Console
-// ════════════════════════════════════════════════════════════
 const firebaseConfig = {
   apiKey:            "AIzaSyDiuNW9oZ-wSuGp5EZfLn_hBfK3W5iuHYo",
   authDomain:        "ausbildungs-cockpit.firebaseapp.com",
@@ -28,1146 +23,1292 @@ const firebaseConfig = {
   appId:             "1:286858503649:web:b6fd5c221cb36b75a2dea0",
   measurementId:     "G-GNKLECPJ1S"
 };
+const fbApp  = initializeApp(firebaseConfig);
+const auth   = getAuth(fbApp);
+const db     = getFirestore(fbApp);
+const stor   = getStorage(fbApp);
 
-const app  = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db   = getFirestore(app);
-const stor = getStorage(app);
-
-// ════════════════════════════════════════════════════════════
-// BILDUNGSPLAN DATEN (vollständig nach offiz. Bildungsplan 2017)
-// ════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
+// BILDUNGSPLAN DATEN (vollständig, 21 HK, alle LZ)
+// ══════════════════════════════════════════════════════════════════
 const BP = [
-  { id: 1, code: "HKB 1", color: "#C9A84C",
-    titel: "Beraten und Betreuen von Gästen und Partnern",
-    kompetenzen: [
-      { id: "1.1", titel: "Kommunikation bei Gästen und Partnern bedarfs- und zielorientiert gestalten", tax: "K4",
-        lz: [
-          "Beratungs-, Verkaufs-, Feedback- und Reklamationsgespräche situationsgerecht mit geeigneter Fragetechnik führen",
-          "Grundlagen der Kommunikation (4 Ebenen: Sach-, Beziehungs-, Selbstkundgabe-, Appellebene) kennen und anwenden",
-          "Verbale und nonverbale Kommunikation reflektieren und Schlüsse ziehen",
-          "Betriebliche Vorgaben für Auftritt und persönliches Erscheinungsbild umsetzen",
-          "Empathischen Umgang mit Gästen, Vorgesetzten, Partnern und Mitarbeitenden pflegen",
-          "Beratung und Betreuung unter Berücksichtigung kultureller und religiöser Hintergründe gestalten"
-        ]
-      },
-      { id: "1.2", titel: "Arbeits- und Tagesplanung kontrollieren und sicherstellen", tax: "K4",
-        lz: [
-          "Betriebseigenes Organigramm mit Nahtstellen beschreiben und zeichnen",
-          "Anforderungsprofile für Stellen in verschiedenen Bereichen verfassen",
-          "Betriebliche Prozesse in Frontoffice, Backoffice, Küche, Restauration und Hauswirtschaft anwenden",
-          "Nahtstellen zwischen den Bereichen analysieren",
-          "Tagesplanung im Zusammenhang mit den Nahtstellen kontrollieren"
-        ]
-      },
-      { id: "1.3", titel: "Betriebliche Produkte und Dienstleistungen zuordnen und Produkte herstellen", tax: "K3",
-        lz: [
-          "Gästen das Speise- und Getränkeangebot und dessen Besonderheiten erklären",
-          "Fachgerechten Getränkeservice durchführen",
-          "Maschinen und Geräte in der Küche nach Vorschrift bedienen",
-          "Ausgewählte Speisen gemäss betrieblichen Vorgaben herstellen",
-          "Ernährungsgrundsätze bei der Herstellung von Speisen anwenden",
-          "Gäste mit Nahrungsmittelallergien und -intoleranzen beraten"
-        ]
-      },
-      { id: "1.4", titel: "Gäste betreuen, betriebliche Produkte und Dienstleistungen verkaufen", tax: "K4",
-        lz: [
-          "Mise en Place für Getränke- und Speiseangebot fachgerecht vorbereiten",
-          "Tische gemäss betrieblichen Vorgaben eindecken und Servicegrundregeln umsetzen",
-          "Check-in gemäss betrieblichen Vorgaben und System durchführen",
-          "Check-out gemäss betrieblichen Vorgaben und System durchführen",
-          "Verkaufsfördernde Beratungsgespräche führen und Upselling einsetzen",
-          "Betriebliche Dienstleistungen und Produkte im Beratungsgespräch beschreiben",
-          "Gästebetreuung proaktiv und vorausschauend gestalten",
-          "Bedürfnisse der Gäste erfassen und als Gastgeber/-in handeln",
-          "Ambiente gemäss Anlässen und betrieblichen Vorgaben gestalten"
-        ]
-      },
-      { id: "1.5", titel: "Rückmeldungen erfassen, auswerten, Feedback geben und Massnahmen umsetzen", tax: "K4",
-        lz: [
-          "Reklamationsgespräche situationsgerecht nach betrieblichen Vorgaben führen",
-          "Gästereklamationen systematisch analysieren und Massnahmen ableiten",
-          "Instrumente zur Erfassung der Gästezufriedenheit anwenden",
-          "Einfache Gästefeedbacks beantworten",
-          "Werbewirksame Antworten auf Bewertungsplattformen formulieren"
-        ]
-      },
-      { id: "1.6", titel: "Gespräche in der zweiten Landessprache führen", tax: "K3",
-        lz: [
-          "Höflichkeitskonventionen in der zweiten Landessprache anwenden",
-          "Mündliche Mitteilungen in der zweiten Landessprache weitergeben",
-          "Gespräche aus dem Betriebsalltag in der zweiten Landessprache führen",
-          "Kenntnisse über Produkte und Dienstleistungen verkaufsfördernd in der zweiten Landessprache einsetzen"
-        ]
-      },
-      { id: "1.7", titel: "Gespräche in der dritten Sprache Englisch führen", tax: "K3",
-        lz: [
-          "Höflichkeitskonventionen auf Englisch anwenden",
-          "Mündliche Mitteilungen auf Englisch weitergeben",
-          "Gespräche aus dem Betriebsalltag auf Englisch führen",
-          "Kenntnisse über Produkte und Dienstleistungen verkaufsfördernd auf Englisch einsetzen"
-        ]
-      }
-    ]
-  },
-  { id: 2, code: "HKB 2", color: "#3A6FA0",
-    titel: "Gestalten und Organisieren von Marketingmassnahmen und Kooperationen",
-    kompetenzen: [
-      { id: "2.1", titel: "Betriebliche und Kooperationsangebote planen und gestalten", tax: "K5",
-        lz: [
-          "Möglichkeiten für saisonale und Kooperationsangebote für verschiedene Gästegruppen aufzeigen",
-          "Zielgruppen des Betriebs analysieren",
-          "Produkte und Dienstleistungen für zielgruppengerechtes Angebot zusammenstellen",
-          "Offerten einholen und nach betrieblichen Vorgaben vergleichen"
-        ]
-      },
-      { id: "2.2", titel: "Einfache Medien und Kommunikationsmittel mit aktuellen Technologien gestalten", tax: "K5",
-        lz: [
-          "Werbeträger mit Text-, Kalkulations- und Grafikprogrammen entwerfen",
-          "Adressatengerechte Folien und Präsentationen erstellen",
-          "Gesetzliche Regeln zu Nutzungsrechten (Urheberrecht) umsetzen",
-          "Passende Informationsträger für betriebliche Angebote bestimmen und bearbeiten"
-        ]
-      },
-      { id: "2.3", titel: "Instrumente für die Erhebung der Gästezufriedenheit erstellen", tax: "K4",
-        lz: [
-          "Betriebliches Instrument zur Erfassung der Gästezufriedenheit analysieren und weiterentwickeln"
-        ]
-      }
-    ]
-  },
-  { id: 3, code: "HKB 3", color: "#5B8C5A",
-    titel: "Organisieren und Umsetzen von administrativen Arbeitsprozessen",
-    kompetenzen: [
-      { id: "3.1", titel: "Grundlagen, Daten und Zahlen für die Administration beschaffen", tax: "K3",
-        lz: [
-          "Allgemeine Geschäftsbedingungen und produktspezifische Verkaufs- und Stornierungsbedingungen anwenden",
-          "Daten und Informationen von Gästen, Partnern und Mitarbeitenden erfassen",
-          "Daten mit betrieblichen Softwareprogrammen (CRM, Hotelsoftware) bearbeiten",
-          "Datensicherung durchführen und Datenschutzvorschriften anwenden",
-          "Daten in geeigneter Form (Tabelle, Diagramm) bereitstellen",
-          "Büromaterial gemäss betrieblichen Vorgaben beschaffen"
-        ]
-      },
-      { id: "3.2", titel: "Interne und externe Korrespondenz erledigen", tax: "K4",
-        lz: [
-          "Anfragen zu Dienstleistungen und Produkten bearbeiten",
-          "Interne und externe Dokumente typographisch regelkonform und übersichtlich darstellen",
-          "Betriebliche Korrespondenz situations- und adressatengerecht verfassen",
-          "Sitzungen und interne Anlässe selbstständig organisieren und reibungslos durchführen",
-          "Brief- und Paketpost nach betrieblichen Vorgaben bearbeiten"
-        ]
-      },
-      { id: "3.3", titel: "Einfache Finanzbuchhaltung führen", tax: "K4",
-        lz: [
-          "Erbrachte Leistungen und Zahlungen im Betriebssystem erfassen",
-          "Kassenabschluss nach betrieblichen Vorgaben durchführen",
-          "Buchungsfehler beim Kassenabschluss aufdecken und Korrekturbuchungen durchführen",
-          "Mahnungen nach betrieblichen Vorgaben erstellen",
-          "Kreditorenrechnungen nach betrieblichen Vorgaben kontrollieren",
-          "Betriebseigene Angebote kalkulieren und Break-Even-Point berechnen"
-        ]
-      },
-      { id: "3.4", titel: "Bei der Administration der Mitarbeiterdossiers und bei Ein- und Austritten mitarbeiten", tax: "K3",
-        lz: [
-          "Im Betrieb übliche Kanäle zur Personalrekrutierung verwenden",
-          "Eintritte und Austritte von Mitarbeitenden nach betrieblichen und rechtlichen Vorgaben bearbeiten",
-          "Den ersten Arbeitstag für neue Mitarbeitende und Lernende gestalten",
-          "Wiederkehrende Aufgaben in der Mitarbeiteradministration ausführen"
-        ]
-      },
-      { id: "3.5", titel: "Betriebliche Statistiken führen, Betriebsprozesse überwachen", tax: "K4",
-        lz: [
-          "Kennzahlen aus dem Tagesabschluss beschreiben (Zimmerbelegung, Ø-Preis, RevPAR, Umsatz, Restaurantfrequenz)",
-          "Kennzahlen berechnen und Einflussmöglichkeiten analysieren",
-          "Massnahmen zur Verbesserung der Kennzahlen entwickeln"
-        ]
-      },
-      { id: "3.6", titel: "Einfache Texte in der zweiten Landessprache verfassen", tax: "K3",
-        lz: [
-          "Einfache Texte des Betriebsalltags in der zweiten Landessprache verfassen",
-          "Texte von der ersten in die zweite Landessprache übersetzen"
-        ]
-      },
-      { id: "3.7", titel: "Einfache Texte in Englisch verfassen", tax: "K3",
-        lz: [
-          "Einfache Texte des Betriebsalltags in Englisch verfassen",
-          "Texte von der ersten Landessprache in Englisch übersetzen"
-        ]
-      }
-    ]
-  },
-  { id: 4, code: "HKB 4", color: "#5B8C5A",
-    titel: "Sicherstellen der Nachhaltigkeit und der Qualitätsvorgaben",
-    kompetenzen: [
-      { id: "4.1", titel: "Lager nachhaltig bewirtschaften und Warenannahme durchführen", tax: "K3",
-        lz: [
-          "Lagerräumlichkeiten nach Vorgaben kontrollieren (Sauberkeit, Ordnung, Temperatur, MHD)",
-          "Warenannahme und -einlagerung nach betrieblichen Vorgaben durchführen",
-          "Lager nachhaltig nach gesetzlichen Vorgaben bewirtschaften (Food Waste, Bestandeskontrollen)"
-        ]
-      },
-      { id: "4.2", titel: "Die betriebliche Werterhaltung sicherstellen", tax: "K3",
-        lz: [
-          "Einfache Reinigungsarbeiten und Unterhaltsreinigungen in öffentlichen Bereichen durchführen und kontrollieren",
-          "Maschinen und Geräte im Hauswirtschaftsbereich fachgerecht bedienen",
-          "Arrivée-, Restant- und Départ-Zimmer nach betrieblichen Vorgaben bereitstellen",
-          "Fachgerechten, ökologisch sinnvollen Einsatz von Reinigungsmitteln erklären",
-          "HACCP-Grundsätze umsetzen und Auswirkungen von Hygienelücken analysieren"
-        ]
-      },
-      { id: "4.3", titel: "Grundsätze der Nachhaltigkeit in allen Abteilungen sicherstellen", tax: "K4",
-        lz: [
-          "Betriebliche Vorschriften zum Gesundheitsschutz umsetzen und Unfallprävention sicherstellen",
-          "Betriebliche Vorgaben zum Umweltschutz umsetzen und mit Standards vergleichen",
-          "Vorgaben zur Abfallentsorgung konsequent umsetzen",
-          "Betriebliche Brandschutzvorgaben umsetzen und Massnahmen bei Bränden beschreiben",
-          "Nachhaltigkeitsmassnahmen als Verkaufsargument verwenden"
-        ]
-      },
-      { id: "4.4", titel: "Betriebliche Werte und Normen umsetzen", tax: "K4",
-        lz: [
-          "Betriebliche Werte und Normen im Arbeitsalltag situationsgerecht umsetzen",
-          "Persönliche Einflussmöglichkeiten auf das Betriebsimage analysieren",
-          "Betriebliche Qualitätsstandards im Arbeitsalltag umsetzen",
-          "Massnahmen aus den Erkenntnissen der Qualitätssysteme ableiten"
-        ]
-      }
-    ]
-  }
+  { id:1, code:"HKB 1", color:"#C9A84C",
+    titel:"Beraten und Betreuen von Gästen und Partnern",
+    kompetenzen:[
+      { id:"1.1", titel:"Kommunikation bedarfs- und zielorientiert gestalten", tax:"K4", sem:[1,2],
+        lz:["Beratungs-, Verkaufs-, Feedback- und Reklamationsgespräche mit geeigneter Fragetechnik führen",
+            "Grundlagen der Kommunikation (4 Ebenen) kennen und anwenden",
+            "Verbale und nonverbale Kommunikation reflektieren und Schlüsse ziehen",
+            "Betriebliche Vorgaben für Auftritt und persönliches Erscheinungsbild umsetzen",
+            "Empathischen Umgang mit allen Beteiligten pflegen",
+            "Beratung unter Berücksichtigung kultureller und religiöser Hintergründe gestalten"]},
+      { id:"1.2", titel:"Arbeits- und Tagesplanung kontrollieren und sicherstellen", tax:"K4", sem:[1,2],
+        lz:["Betriebseigenes Organigramm mit Nahtstellen beschreiben und zeichnen",
+            "Anforderungsprofile für Stellen in verschiedenen Bereichen verfassen",
+            "Betriebliche Prozesse in Frontoffice, Backoffice, Küche, Restauration und Hauswirtschaft anwenden",
+            "Nahtstellen zwischen den Bereichen analysieren",
+            "Tagesplanung im Zusammenhang mit den Nahtstellen kontrollieren"]},
+      { id:"1.3", titel:"Betriebliche Produkte und Dienstleistungen zuordnen und Produkte herstellen", tax:"K3", sem:[1,2],
+        lz:["Gästen das Speise- und Getränkeangebot und dessen Besonderheiten erklären",
+            "Fachgerechten Getränkeservice durchführen",
+            "Maschinen und Geräte in der Küche nach Vorschrift bedienen",
+            "Ausgewählte Speisen gemäss betrieblichen Vorgaben herstellen",
+            "Ernährungsgrundsätze bei der Herstellung von Speisen anwenden",
+            "Gäste mit Nahrungsmittelallergien und -intoleranzen beraten"]},
+      { id:"1.4", titel:"Gäste betreuen, Produkte und Dienstleistungen verkaufen", tax:"K4", sem:[1,2,3,4],
+        lz:["Mise en Place fachgerecht vorbereiten",
+            "Tische gemäss betrieblichen Vorgaben eindecken und Servicegrundregeln umsetzen",
+            "Check-in gemäss betrieblichen Vorgaben und System durchführen",
+            "Check-out gemäss betrieblichen Vorgaben und System durchführen",
+            "Verkaufsfördernde Beratungsgespräche führen und Upselling einsetzen",
+            "Betriebliche Dienstleistungen und Produkte im Beratungsgespräch beschreiben",
+            "Gästebetreuung proaktiv und vorausschauend gestalten",
+            "Bedürfnisse der Gäste erfassen und als Gastgeber/-in handeln",
+            "Ambiente gemäss Anlässen und betrieblichen Vorgaben gestalten"]},
+      { id:"1.5", titel:"Rückmeldungen erfassen, auswerten, Feedback geben und Massnahmen umsetzen", tax:"K4", sem:[3,4],
+        lz:["Reklamationsgespräche situationsgerecht nach betrieblichen Vorgaben führen",
+            "Gästereklamationen systematisch analysieren und Massnahmen ableiten",
+            "Instrumente zur Erfassung der Gästezufriedenheit anwenden",
+            "Einfache Gästefeedbacks beantworten",
+            "Werbewirksame Antworten auf Bewertungsplattformen formulieren"]},
+      { id:"1.6", titel:"Gespräche in der zweiten Landessprache führen", tax:"K3", sem:[3,4,5,6],
+        lz:["Höflichkeitskonventionen in der zweiten Landessprache anwenden",
+            "Mündliche Mitteilungen in der zweiten Landessprache weitergeben",
+            "Gespräche aus dem Betriebsalltag in der zweiten Landessprache führen",
+            "Kenntnisse verkaufsfördernd in der zweiten Landessprache einsetzen"]},
+      { id:"1.7", titel:"Gespräche in Englisch führen", tax:"K3", sem:[1,2,3,4,5,6],
+        lz:["Höflichkeitskonventionen auf Englisch anwenden",
+            "Mündliche Mitteilungen auf Englisch weitergeben",
+            "Gespräche aus dem Betriebsalltag auf Englisch führen",
+            "Kenntnisse verkaufsfördernd auf Englisch einsetzen"]}
+    ]},
+  { id:2, code:"HKB 2", color:"#3A6FA0",
+    titel:"Gestalten und Organisieren von Marketingmassnahmen und Kooperationen",
+    kompetenzen:[
+      { id:"2.1", titel:"Betriebliche und Kooperationsangebote planen und gestalten", tax:"K5", sem:[3,4],
+        lz:["Möglichkeiten für saisonale und Kooperationsangebote für verschiedene Gästegruppen aufzeigen",
+            "Zielgruppen des Betriebs analysieren",
+            "Produkte und Dienstleistungen für zielgruppengerechtes Angebot zusammenstellen",
+            "Offerten einholen und nach betrieblichen Vorgaben vergleichen"]},
+      { id:"2.2", titel:"Medien und Kommunikationsmittel mit aktuellen Technologien gestalten", tax:"K5", sem:[3,4,5,6],
+        lz:["Werbeträger mit Text-, Kalkulations- und Grafikprogrammen entwerfen",
+            "Adressatengerechte Folien und Präsentationen erstellen",
+            "Gesetzliche Regeln zu Nutzungsrechten (Urheberrecht) umsetzen",
+            "Passende Informationsträger für betriebliche Angebote bestimmen und bearbeiten"]},
+      { id:"2.3", titel:"Instrumente für die Erhebung der Gästezufriedenheit erstellen", tax:"K4", sem:[5,6],
+        lz:["Betriebliches Instrument zur Erfassung der Gästezufriedenheit analysieren und weiterentwickeln"]}
+    ]},
+  { id:3, code:"HKB 3", color:"#5B8C5A",
+    titel:"Organisieren und Umsetzen von administrativen Arbeitsprozessen",
+    kompetenzen:[
+      { id:"3.1", titel:"Grundlagen, Daten und Zahlen für die Administration beschaffen", tax:"K3", sem:[1,2],
+        lz:["Allgemeine Geschäftsbedingungen und Stornierungsbedingungen anwenden",
+            "Daten von Gästen, Partnern und Mitarbeitenden erfassen",
+            "Daten mit betrieblicher Software (CRM, Hotelsoftware) bearbeiten",
+            "Datensicherung durchführen und Datenschutzvorschriften anwenden",
+            "Daten in geeigneter Form bereitstellen",
+            "Büromaterial gemäss betrieblichen Vorgaben beschaffen"]},
+      { id:"3.2", titel:"Interne und externe Korrespondenz erledigen", tax:"K4", sem:[1,2,3,4],
+        lz:["Anfragen zu Dienstleistungen und Produkten bearbeiten",
+            "Dokumente typographisch regelkonform und übersichtlich darstellen",
+            "Betriebliche Korrespondenz situations- und adressatengerecht verfassen",
+            "Sitzungen und interne Anlässe selbstständig organisieren und reibungslos durchführen",
+            "Brief- und Paketpost nach betrieblichen Vorgaben bearbeiten"]},
+      { id:"3.3", titel:"Einfache Finanzbuchhaltung führen", tax:"K4", sem:[3,4,5,6],
+        lz:["Erbrachte Leistungen und Zahlungen im Betriebssystem erfassen",
+            "Kassenabschluss nach betrieblichen Vorgaben durchführen",
+            "Buchungsfehler aufdecken und Korrekturbuchungen durchführen",
+            "Mahnungen nach betrieblichen Vorgaben erstellen",
+            "Kreditorenrechnungen kontrollieren",
+            "Betriebseigene Angebote kalkulieren und Break-Even-Point berechnen"]},
+      { id:"3.4", titel:"Bei der Administration der Mitarbeiterdossiers mitarbeiten", tax:"K3", sem:[3,4,5,6],
+        lz:["Kanäle zur Personalrekrutierung verwenden",
+            "Eintritte und Austritte von Mitarbeitenden bearbeiten",
+            "Den ersten Arbeitstag für neue Mitarbeitende gestalten",
+            "Wiederkehrende Aufgaben in der Mitarbeiteradministration ausführen"]},
+      { id:"3.5", titel:"Betriebliche Statistiken führen, Betriebsprozesse überwachen", tax:"K4", sem:[5,6],
+        lz:["Kennzahlen aus dem Tagesabschluss beschreiben (Zimmerbelegung, Ø-Preis, RevPAR)",
+            "Kennzahlen berechnen und Einflussmöglichkeiten analysieren",
+            "Massnahmen zur Verbesserung der Kennzahlen entwickeln"]},
+      { id:"3.6", titel:"Einfache Texte in der zweiten Landessprache verfassen", tax:"K3", sem:[3,4,5,6],
+        lz:["Einfache Texte des Betriebsalltags in der zweiten Landessprache verfassen",
+            "Texte von der ersten in die zweite Landessprache übersetzen"]},
+      { id:"3.7", titel:"Einfache Texte in Englisch verfassen", tax:"K3", sem:[3,4,5,6],
+        lz:["Einfache Texte des Betriebsalltags in Englisch verfassen",
+            "Texte von der ersten Landessprache in Englisch übersetzen"]}
+    ]},
+  { id:4, code:"HKB 4", color:"#8B6914",
+    titel:"Sicherstellen der Nachhaltigkeit und der Qualitätsvorgaben",
+    kompetenzen:[
+      { id:"4.1", titel:"Lager nachhaltig bewirtschaften und Warenannahme durchführen", tax:"K3", sem:[1,2],
+        lz:["Lagerräumlichkeiten nach Vorgaben kontrollieren (Sauberkeit, Temperatur, MHD)",
+            "Warenannahme und -einlagerung nach betrieblichen Vorgaben durchführen",
+            "Lager nachhaltig bewirtschaften (Food Waste, Bestandeskontrollen)"]},
+      { id:"4.2", titel:"Die betriebliche Werterhaltung sicherstellen", tax:"K3", sem:[1,2,3,4],
+        lz:["Reinigungsarbeiten in öffentlichen Bereichen durchführen und kontrollieren",
+            "Maschinen und Geräte im Hauswirtschaftsbereich fachgerecht bedienen",
+            "Arrivée-, Restant- und Départ-Zimmer nach betrieblichen Vorgaben bereitstellen",
+            "Fachgerechten, ökologisch sinnvollen Einsatz von Reinigungsmitteln erklären",
+            "HACCP-Grundsätze umsetzen und Auswirkungen von Hygienelücken analysieren"]},
+      { id:"4.3", titel:"Grundsätze der Nachhaltigkeit in allen Abteilungen sicherstellen", tax:"K4", sem:[3,4,5,6],
+        lz:["Betriebliche Vorschriften zum Gesundheitsschutz umsetzen und Unfallprävention sicherstellen",
+            "Betriebliche Vorgaben zum Umweltschutz umsetzen und mit Standards vergleichen",
+            "Vorgaben zur Abfallentsorgung konsequent umsetzen",
+            "Betriebliche Brandschutzvorgaben umsetzen und Massnahmen bei Bränden beschreiben",
+            "Nachhaltigkeitsmassnahmen als Verkaufsargument verwenden"]},
+      { id:"4.4", titel:"Betriebliche Werte und Normen umsetzen", tax:"K4", sem:[5,6],
+        lz:["Betriebliche Werte und Normen im Arbeitsalltag situationsgerecht umsetzen",
+            "Persönliche Einflussmöglichkeiten auf das Betriebsimage analysieren",
+            "Betriebliche Qualitätsstandards im Arbeitsalltag umsetzen",
+            "Massnahmen aus den Erkenntnissen der Qualitätssysteme ableiten"]}
+    ]}
+];
+const ALL_HK = BP.flatMap(h => h.kompetenzen);
+const ALL_LZ = ALL_HK.flatMap(hk => hk.lz.map((_,i) => `${hk.id}.${i+1}`));
+
+// QV SZENARIEN
+const QV_SZENARIEN = [
+  { id:"s1", titel:"CPEX Situation 1: Check-in mit Sonderwunsch", hkbs:[1,3],
+    beschreibung:"Gast mit Sonderwunsch beim Check-in. Zimmerkategorie-Upgrade, Allergieinfo, Reklamation wegen Lärm.",
+    aufgaben:[
+      "Begrüssung und Identifikation des Gastes simulieren",
+      "Upgrade-Gespräch mit Upselling-Argumenten üben",
+      "Reklamation über Zimmerlärm professionell abhandeln",
+      "Check-in-Prozess im PMS vollständig durchführen",
+      "Schriftliche Notiz für Housekeeping erstellen (HK 3.2)"
+    ]},
+  { id:"s2", titel:"CPEX Situation 2: Telefonische Reservierung & Korrespondenz", hkbs:[1,2],
+    beschreibung:"Telefonische Gruppenreservierung entgegennehmen, Offerte erstellen, Bestätigungsmail verfassen.",
+    aufgaben:[
+      "Telefonisches Reservierungsgespräch mit Gruppen-Checkliste üben",
+      "Gruppenofferte mit Preiskalkulation erstellen (HK 3.3)",
+      "Formelle Bestätigungs-E-Mail auf Deutsch verfassen",
+      "Bestätigungs-E-Mail auf Englisch verfassen (HK 1.7)",
+      "Stornierungsbedingungen kommunizieren (HK 3.1)"
+    ]},
+  { id:"s3", titel:"CPEX Situation 3: Nachhaltigkeit & Qualität", hkbs:[4],
+    beschreibung:"Nachhaltigkeitsprojekt im Betrieb vorstellen, Kontrollgang Housekeeping, Qualitätsmängel beheben.",
+    aufgaben:[
+      "Nachhaltigkeitsmassnahmen des Betriebs präsentieren (HK 4.3)",
+      "Kontrollgang Zimmer: Fehler entdecken und dokumentieren (HK 4.2)",
+      "HACCP-Checkliste für F&B Bereich ausfüllen (HK 4.2)",
+      "Verkaufsargument Nachhaltigkeit im Gästegespräch üben (HK 4.3)",
+      "Qualitätsprotokoll erstellen und Massnahmen ableiten (HK 4.4)"
+    ]},
+  { id:"s4", titel:"PEX: Fachgespräch mit Expertinnen", hkbs:[1,2,3,4],
+    beschreibung:"40-minütiges Fachgespräch zu allen 4 HKBs. Eigene Lernberichte präsentieren und reflektieren.",
+    aufgaben:[
+      "3 eigene Lernberichte zur Präsentation vorbereiten",
+      "Selbstreflexion zu Stärken und Entwicklungsfeldern formulieren",
+      "Betriebsrundgang vorbereiten (Empfang, Restauration, Zimmer)",
+      "Kennzahlen des Betriebs (Belegung, RevPAR) erklären können (HK 3.5)",
+      "Fremdsprachige Szenarien (EN + 2. Landessprache) vorbereiten (HK 1.6/1.7)",
+      "Persönliche Berufsziele nach QV formulieren"
+    ]}
 ];
 
-// Alle LZ-Keys generieren
-const ALL_HK = BP.flatMap(h => h.kompetenzen);
-const ALL_LZ_KEYS = ALL_HK.flatMap(hk => hk.lz.map((_,i) => `${hk.id}.${i+1}`));
+// ABTEILUNGEN für Bildungsbericht
+const ABTEILUNGEN = [
+  { id:"kueche",        label:"Küche",          icon:"🍳" },
+  { id:"service",       label:"Service/F&B",    icon:"🍽️" },
+  { id:"housekeeping",  label:"Housekeeping",   icon:"🛏️" },
+  { id:"reception",     label:"Reception",      icon:"🛎️" },
+  { id:"administration",label:"Administration", icon:"💼" }
+];
+const BB_KRITERIEN = [
+  { k:"fach",    label:"Fachkompetenz",    desc:"Berufsspezifisches Wissen und Können, korrekte Arbeitsausführung" },
+  { k:"methode", label:"Methodenkompetenz",desc:"Planung, Arbeitstechniken, Umgang mit Informationen, Prozessdenken" },
+  { k:"sozial",  label:"Sozialkompetenz",  desc:"Kommunikation, Teamarbeit, Umgang mit Gästen und Mitarbeitenden" },
+  { k:"selbst",  label:"Selbstkompetenz",  desc:"Eigenverantwortung, Zuverlässigkeit, Reflexionsfähigkeit, Flexibilität" }
+];
+const STAR_LBL = ['','Ungenügend','Schwach','Ausreichend','Gut','Sehr gut','Ausgezeichnet'];
 
-// ════════════════════════════════════════════════════════════
-// APP STATE
-// ════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════════
 let user = null;
+let userRole = 'admin'; // 'admin' | 'abteilung'
+let userAbteilung = null; // z.B. 'kueche'
 let currentLid = null;
+let bpSemFilter = 0; // 0 = alle
+let currentBerichtId = null;
+let dragState = null;
 let S = {
-  lehrlinge: [],
-  lernberichte: [],
-  lzStatus: {},   // { lid: { "1.1.1": true } }
-  bewertungen: {}, // { lid: { fach:4, methode:3, ... } }
-  einstellungen: { apiKey: '', qvDatum: '2026-07-01' }
+  lehrlinge: [], lernberichte: [], lzStatus: {},
+  bewertungen: {}, einsatzplan: {}, termine: [],
+  einstellungen: { apiKey:'', qvDatum:'2026-07-01' }
 };
 let kiHistory = [];
 
-// ════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
 // FIREBASE HELPERS
-// ════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
 const uid = () => user?.uid;
+const rj = async p => { const s=await getDoc(doc(db,p)); return s.exists()?s.data():null; };
+const wj = async (p,d) => setDoc(doc(db,p),d,{merge:true});
+const col = async p => { const s=await getDocs(collection(db,p)); return s.docs.map(d=>({id:d.id,...d.data()})); };
+const add = async (p,d) => { const r=await addDoc(collection(db,p),{...d,_ts:serverTimestamp()}); return r.id; };
+const del = async p => deleteDoc(doc(db,p));
+const upd = async (p,d) => updateDoc(doc(db,p),d);
 
-async function fbGet(path) {
-  const snap = await getDoc(doc(db, path));
-  return snap.exists() ? snap.data() : null;
-}
-async function fbSet(path, data) {
-  await setDoc(doc(db, path), data, { merge: true });
-}
-async function fbCol(path) {
-  const snap = await getDocs(collection(db, path));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-}
-async function fbAdd(path, data) {
-  const ref2 = await addDoc(collection(db, path), { ...data, _ts: serverTimestamp() });
-  return ref2.id;
-}
-async function fbDel(path) {
-  await deleteDoc(doc(db, path));
-}
-
-// ════════════════════════════════════════════════════════════
-// DATA LOAD / SAVE
-// ════════════════════════════════════════════════════════════
 async function loadAll() {
-  const [lehrlinge, berichte, lzSnap, bewSnap, einSnap] = await Promise.all([
-    fbCol(`users/${uid()}/lehrlinge`),
-    fbCol(`users/${uid()}/lernberichte`),
-    fbGet(`users/${uid()}/lzStatus/data`),
-    fbGet(`users/${uid()}/bewertungen/data`),
-    fbGet(`users/${uid()}/einstellungen/data`)
+  const [l,b,lz,bew,ep,t,ein] = await Promise.all([
+    col(`users/${uid()}/lehrlinge`), col(`users/${uid()}/lernberichte`),
+    rj(`users/${uid()}/lzStatus/data`), rj(`users/${uid()}/bewertungen/data`),
+    rj(`users/${uid()}/einsatzplan/data`), col(`users/${uid()}/termine`),
+    rj(`users/${uid()}/einstellungen/data`)
   ]);
-  S.lehrlinge    = lehrlinge;
-  S.lernberichte = berichte;
-  S.lzStatus     = lzSnap  || {};
-  S.bewertungen  = bewSnap || {};
-  S.einstellungen = einSnap || { apiKey: '', qvDatum: '2026-07-01' };
-  if (!currentLid && lehrlinge.length) currentLid = lehrlinge[0].id;
+  S.lehrlinge    = l||[];
+  S.lernberichte = b||[];
+  S.lzStatus     = lz||{};
+  S.bewertungen  = bew||{};
+  S.einsatzplan  = ep||{};
+  S.termine      = t||[];
+  S.einstellungen= ein||{apiKey:'',qvDatum:'2026-07-01'};
+  if (!currentLid && S.lehrlinge.length) currentLid = S.lehrlinge[0].id;
 }
 
-async function saveLzStatus() {
-  await fbSet(`users/${uid()}/lzStatus/data`, S.lzStatus);
-}
-async function saveBewertungen() {
-  await fbSet(`users/${uid()}/bewertungen/data`, S.bewertungen);
-}
-async function saveEinstellungen() {
-  await fbSet(`users/${uid()}/einstellungen/data`, S.einstellungen);
-}
-
-// ════════════════════════════════════════════════════════════
-// HK STATUS BERECHNUNG
-// ════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
+// CALCULATIONS
+// ══════════════════════════════════════════════════════════════════
 function calcHKStatus(lid) {
-  const lz = S.lzStatus[lid] || {};
-  const result = {};
-  ALL_HK.forEach(hk => {
-    const keys = hk.lz.map((_,i) => `${hk.id}.${i+1}`);
-    const done = keys.filter(k => lz[k]).length;
-    result[hk.id] = done === 0 ? 0 : done === keys.length ? 2 : 1;
+  const lz = S.lzStatus[lid]||{};
+  const r={};
+  ALL_HK.forEach(hk=>{
+    const keys=hk.lz.map((_,i)=>`${hk.id}.${i+1}`);
+    const done=keys.filter(k=>lz[k]).length;
+    r[hk.id]=done===0?0:done===keys.length?2:1;
   });
-  return result;
+  return r;
+}
+function calcLZProg(lid) {
+  const lz=S.lzStatus[lid]||{};
+  const done=ALL_LZ.filter(k=>lz[k]).length;
+  return {done,total:ALL_LZ.length,pct:Math.round(done/ALL_LZ.length*100)};
 }
 
-function calcLZProgress(lid) {
-  const lz = S.lzStatus[lid] || {};
-  const done = ALL_LZ_KEYS.filter(k => lz[k]).length;
-  return { done, total: ALL_LZ_KEYS.length, pct: Math.round(done / ALL_LZ_KEYS.length * 100) };
+// ══════════════════════════════════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════════════════════════════════
+function showLoading(v) { document.getElementById('loading').style.display=v?'flex':'none'; }
+let toastTm;
+function toast(msg,type='green') {
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className='toast '+(type==='green'?'ok':type==='red'?'err':'warn');
+  t.classList.add('show');
+  clearTimeout(toastTm);
+  toastTm=setTimeout(()=>t.classList.remove('show'),2800);
 }
+function openModal(id) { document.getElementById('modal-'+id).classList.add('open'); }
+function closeModal(id) { document.getElementById('modal-'+id).classList.remove('open'); }
+function fmtDate(iso) { if(!iso)return'–'; return new Date(iso).toLocaleDateString('de-CH',{day:'numeric',month:'long',year:'numeric'}); }
+function fmtSize(b) { return b<1024?b+'B':b<1048576?(b/1024).toFixed(1)+'KB':(b/1048576).toFixed(1)+'MB'; }
+function fileIcon(n='') { return /\.pdf$/i.test(n)?'📄':/\.(jpg|jpeg|png|gif|webp)$/i.test(n)?'🖼️':'📎'; }
 
-// ════════════════════════════════════════════════════════════
-// AUTH STATE
-// ════════════════════════════════════════════════════════════
-onAuthStateChanged(auth, async (u) => {
-  user = u;
-  if (u) {
-    document.getElementById('auth-screen').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
-    document.getElementById('user-email').textContent = u.email;
+// ══════════════════════════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════════════════════════
+onAuthStateChanged(auth, async u=>{
+  user=u;
+  if(u){
+    document.getElementById('auth-screen').style.display='none';
+    document.getElementById('app').style.display='block';
+    document.getElementById('user-email').textContent=u.email;
     showLoading(true);
     await loadAll();
     showLoading(false);
     renderAll();
   } else {
-    document.getElementById('auth-screen').style.display = 'flex';
-    document.getElementById('app').style.display = 'none';
+    document.getElementById('auth-screen').style.display='flex';
+    document.getElementById('app').style.display='none';
   }
 });
 
-// ════════════════════════════════════════════════════════════
-// UI HELPERS
-// ════════════════════════════════════════════════════════════
-function showLoading(show) {
-  document.getElementById('loading').style.display = show ? 'flex' : 'none';
+async function login() {
+  const e=document.getElementById('auth-email').value.trim();
+  const p=document.getElementById('auth-pw').value;
+  document.getElementById('auth-err').textContent='';
+  try { await signInWithEmailAndPassword(auth,e,p); }
+  catch(err) { document.getElementById('auth-err').textContent=
+    err.code==='auth/invalid-credential'?'E-Mail oder Passwort falsch.':err.message; }
+}
+async function register() {
+  const e=document.getElementById('auth-email').value.trim();
+  const p=document.getElementById('auth-pw').value;
+  const err=document.getElementById('auth-err');
+  err.textContent='';
+  if(p.length<6){err.textContent='Passwort mind. 6 Zeichen.';return;}
+  try { await createUserWithEmailAndPassword(auth,e,p); }
+  catch(ex){ err.textContent=ex.code==='auth/email-already-in-use'?'E-Mail bereits registriert.':ex.message; }
+}
+async function logout() {
+  await signOut(auth);
+  S={lehrlinge:[],lernberichte:[],lzStatus:{},bewertungen:{},einsatzplan:{},termine:[],einstellungen:{apiKey:'',qvDatum:'2026-07-01'}};
+  kiHistory=[];
 }
 
-function toast(msg, type = 'green') {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.style.borderColor = type === 'green' ? 'var(--green)' : 'var(--red)';
-  t.style.color = type === 'green' ? 'var(--green-l)' : 'var(--red-l)';
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2800);
-}
-
-function openModal(id) { document.getElementById('modal-' + id).classList.add('open'); }
-function closeModal(id) { document.getElementById('modal-' + id).classList.remove('open'); }
-
-function fmtDate(iso) {
-  if (!iso) return '–';
-  return new Date(iso).toLocaleDateString('de-CH', { day:'numeric', month:'long', year:'numeric' });
-}
-function fmtSize(bytes) {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
-  return (bytes/1048576).toFixed(1) + ' MB';
-}
-function fileIcon(name = '') {
-  if (name.endsWith('.pdf')) return '📄';
-  if (/\.(jpg|jpeg|png|gif|webp)$/i.test(name)) return '🖼️';
-  if (/\.(doc|docx)$/i.test(name)) return '📝';
-  return '📎';
-}
-
-// ════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
 // TAB NAVIGATION
-// ════════════════════════════════════════════════════════════
-function showTab(id, el) {
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('sec-' + id).classList.add('active');
-  el.classList.add('active');
-  if (id === 'db') renderDBStatus();
+// ══════════════════════════════════════════════════════════════════
+function showTab(id,el) {
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('sec-'+id).classList.add('active');
+  if(el) el.classList.add('active');
 }
 
-// ════════════════════════════════════════════════════════════
-// LEHRLING-LEISTE (wiederverwendbar)
-// ════════════════════════════════════════════════════════════
-function makeLB(containerId) {
-  const el = document.getElementById(containerId);
-  if (!el) return;
-  el.innerHTML = S.lehrlinge.map(l => `
-    <div class="lp ${l.id === currentLid ? 'active' : ''}" onclick="selectL('${l.id}')">
-      <div class="lav" style="background:${l.color||'#444'}">${l.initials}</div>
-      <div>
-        <div style="font-size:12px;font-weight:500;">${l.vorname} ${l.nachname}</div>
-        <div style="font-size:10px;color:var(--dim);">${l.lj}. Lehrjahr</div>
-      </div>
+// ══════════════════════════════════════════════════════════════════
+// LEHRLING BAR (wiederverwendbar)
+// ══════════════════════════════════════════════════════════════════
+function makeLB(id) {
+  const el=document.getElementById(id); if(!el)return;
+  el.innerHTML=S.lehrlinge.map(l=>`
+    <div class="lp ${l.id===currentLid?'active':''}" onclick="selectL('${l.id}')">
+      <div class="lav" style="background:${l.color||'#555'}">${l.initials}</div>
+      <div><div style="font-size:12px;font-weight:500;">${l.vorname} ${l.nachname}</div>
+      <div class="dim" style="font-size:10px;">${l.lj}. Lehrjahr</div></div>
     </div>`).join('');
 }
+function selectL(lid) { currentLid=lid; renderAll(); }
 
-function selectL(lid) {
-  currentLid = lid;
-  renderAll();
+function fillDropdowns() {
+  ['nb-lid'].forEach(id=>{
+    const el=document.getElementById(id); if(!el)return;
+    el.innerHTML=S.lehrlinge.map(l=>`<option value="${l.id}">${l.vorname} ${l.nachname}</option>`).join('');
+    if(currentLid) el.value=currentLid;
+  });
+  const hkSel=document.getElementById('nb-hk');
+  if(hkSel) hkSel.innerHTML='<option value="">— Keine Angabe —</option>'+
+    ALL_HK.map(hk=>`<option value="${hk.id}">HK ${hk.id}: ${hk.titel.substring(0,45)}…</option>`).join('');
 }
 
-// ════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
 // ÜBERSICHT
-// ════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
 function renderOverview() {
   makeLB('ov-lb');
-  if (!currentLid) return;
-  const l = S.lehrlinge.find(x => x.id === currentLid);
-  if (!l) return;
-  const berichte = S.lernberichte.filter(b => b.lid === currentLid);
-  const vis = berichte.filter(b => b.status === 'visiert').length;
-  const hkSt = calcHKStatus(currentLid);
-  const hkDone = Object.values(hkSt).filter(v => v === 2).length;
-  const lzP = calcLZProgress(currentLid);
-  const days = Math.ceil((new Date('2026-07-01') - new Date()) / 86400000);
+  if(!currentLid)return;
+  const l=S.lehrlinge.find(x=>x.id===currentLid); if(!l)return;
+  const b=S.lernberichte.filter(x=>x.lid===currentLid);
+  const lzP=calcLZProg(currentLid);
+  const hkSt=calcHKStatus(currentLid);
+  const hkDone=Object.values(hkSt).filter(v=>v===2).length;
+  const days=Math.max(0,Math.ceil((new Date(S.einstellungen.qvDatum||'2026-07-01')-new Date())/86400000));
 
-  document.getElementById('ov-name').textContent = `${l.vorname} ${l.nachname}`;
-  document.getElementById('ov-detail').textContent = `${l.lj}. Lehrjahr · Start: ${l.start}`;
+  document.getElementById('ov-stats').innerHTML=`
+    <div class="sc" style="--a:#C9A84C"><div class="sc-n" style="color:#C9A84C">${l.lj}.</div><div class="sc-l">Lehrjahr</div><div class="dim sc-s">Start ${l.start}</div></div>
+    <div class="sc" style="--a:#5B8C5A"><div class="sc-n" style="color:#7EC07E">${b.filter(x=>x.status==='visiert').length}/${b.length}</div><div class="sc-l">Lernberichte</div><div class="dim sc-s">visiert / total</div></div>
+    <div class="sc" style="--a:#3A6FA0"><div class="sc-n" style="color:#5A8FC0">${lzP.pct}%</div><div class="sc-l">Leistungsziele</div><div class="dim sc-s">${lzP.done}/${lzP.total} · ${hkDone}/21 HK ✓</div></div>
+    <div class="sc" style="--a:#C9A84C"><div class="sc-n" style="color:#C9A84C">${days}</div><div class="sc-l">Tage bis QV</div><div class="dim sc-s">${S.einstellungen.qvDatum||'2026-07-01'}</div></div>`;
 
-  document.getElementById('ov-stats').innerHTML = `
-    <div class="stat-card" style="--accent:#C9A84C">
-      <div class="sc-num" style="color:#C9A84C">${l.lj}.</div>
-      <div class="sc-lbl">Lehrjahr</div>
-      <div class="sc-sub">Start ${l.start}</div>
-    </div>
-    <div class="stat-card" style="--accent:#5B8C5A">
-      <div class="sc-num" style="color:#7AB87A">${vis}/${berichte.length}</div>
-      <div class="sc-lbl">Lernberichte</div>
-      <div class="sc-sub">Visiert / Total</div>
-    </div>
-    <div class="stat-card" style="--accent:#3A6FA0">
-      <div class="sc-num" style="color:#5A8FC0">${lzP.pct}%</div>
-      <div class="sc-lbl">Leistungsziele</div>
-      <div class="sc-sub">${lzP.done}/${lzP.total} · ${hkDone}/21 HK ✓</div>
-    </div>
-    <div class="stat-card" style="--accent:#C9A84C">
-      <div class="sc-num" style="color:#C9A84C">${days}</div>
-      <div class="sc-lbl">Tage bis QV</div>
-      <div class="sc-sub">Juli 2026</div>
-    </div>`;
-
-  let ph = '';
-  BP.forEach(hkb => {
-    const ids = hkb.kompetenzen.map(k => k.id);
-    const d = ids.filter(id => hkSt[id] === 2).length;
-    const p = ids.filter(id => hkSt[id] === 1).length;
-    const pct = Math.round((d + p * .5) / ids.length * 100);
-    ph += `<div class="pw"><div class="prow"><span>${hkb.code}</span><span class="dim">${pct}%</span></div>
+  let ph='';
+  BP.forEach(hkb=>{
+    const ids=hkb.kompetenzen.map(k=>k.id);
+    const d=ids.filter(id=>hkSt[id]===2).length;
+    const p=ids.filter(id=>hkSt[id]===1).length;
+    const pct=Math.round((d+p*.5)/ids.length*100);
+    ph+=`<div class="pw"><div class="prow"><span>${hkb.code}: ${hkb.titel.substring(0,30)}…</span><span class="dim">${pct}%</span></div>
       <div class="pbar"><div class="pfill" style="width:${pct}%;background:${hkb.color}"></div></div></div>`;
   });
-  document.getElementById('ov-prog').innerHTML = ph;
+  document.getElementById('ov-prog').innerHTML=ph;
 
-  let tasks = '';
-  const eingereicht = berichte.filter(b => b.status === 'eingereicht');
-  if (eingereicht.length) {
-    tasks += `<div class="task-row">📝 <div style="flex:1"><b>${eingereicht.length} Bericht(e)</b> warten auf Visum</div><span class="tag ty">Prüfen</span></div>`;
-  }
-  const offenLZ = lzP.total - lzP.done;
-  if (offenLZ > 0) {
-    tasks += `<div class="task-row">📚 <div style="flex:1"><b>${offenLZ} Leistungsziele</b> noch offen</div><span class="tag tb">Offen</span></div>`;
-  }
-  if (!tasks) tasks = '<div style="text-align:center;padding:18px;color:var(--green-l);font-size:13px;">✓ Keine offenen Aufgaben</div>';
-  document.getElementById('ov-tasks').innerHTML = tasks;
+  // Nächste Termine
+  const now=new Date(); const nowStr=now.toISOString().slice(0,10);
+  const upcoming=S.termine.filter(t=>t.lid===currentLid&&t.datum>=nowStr).sort((a,b)=>a.datum.localeCompare(b.datum)).slice(0,3);
+  let tasks='';
+  b.filter(x=>x.status==='eingereicht').forEach(x=>{ tasks+=`<div class="task-row">📝 <div style="flex:1"><b>${x.thema||'Lernbericht'}</b> wartet auf Visum</div><span class="tag ty">Prüfen</span></div>`; });
+  upcoming.forEach(t=>{ tasks+=`<div class="task-row">📅 <div style="flex:1"><b>${fmtDate(t.datum)}</b>: ${t.titel}</div><span class="tag tb">Termin</span></div>`; });
+  if(!tasks) tasks='<div style="text-align:center;padding:16px;color:var(--green-l);font-size:12px;">✓ Keine offenen Aufgaben</div>';
+  document.getElementById('ov-tasks').innerHTML=tasks;
 }
 
-// ════════════════════════════════════════════════════════════
-// BILDUNGSPLAN MIT LZ-CHECKBOXEN
-// ════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
+// BILDUNGSPLAN (mit Semester-Filter)
+// ══════════════════════════════════════════════════════════════════
 function renderBildungsplan() {
   makeLB('bp-lb');
-  if (!currentLid) return;
-  const lid = currentLid;
-  const lz = S.lzStatus[lid] || {};
-  const lzP = calcLZProgress(lid);
-  const l = S.lehrlinge.find(x => x.id === lid);
+  if(!currentLid)return;
+  const lid=currentLid;
+  const lz=S.lzStatus[lid]||{};
+  const lzP=calcLZProg(lid);
+  const l=S.lehrlinge.find(x=>x.id===lid);
 
-  document.getElementById('bp-sub').textContent =
-    l ? `${l.vorname} ${l.nachname} · ${lzP.done}/${lzP.total} Leistungsziele erledigt (${lzP.pct}%)` : '';
-  document.getElementById('bp-total-bar').style.width = lzP.pct + '%';
-  document.getElementById('bp-total-label').textContent = lzP.pct + '%';
+  // Progress header
+  document.getElementById('bp-sub').textContent=l?`${l.vorname} ${l.nachname} · ${lzP.done}/${lzP.total} LZ erledigt (${lzP.pct}%)`:'—';
+  document.getElementById('bp-total-bar').style.width=lzP.pct+'%';
+  document.getElementById('bp-total-lbl').textContent=lzP.pct+'%';
 
-  let html = '';
-  BP.forEach(hkb => {
-    const hkbLZKeys = hkb.kompetenzen.flatMap((hk,_) => hk.lz.map((_,i) => `${hk.id}.${i+1}`));
-    const hkbDone = hkbLZKeys.filter(k => lz[k]).length;
-    const hkbPct = Math.round(hkbDone / hkbLZKeys.length * 100);
+  // Semester-Filter Buttons
+  const semBtns=document.getElementById('bp-sem-btns');
+  semBtns.innerHTML=['Alle',...[1,2,3,4,5,6].map(s=>'Semester '+s)].map((lbl,i)=>
+    `<button class="sem-btn ${bpSemFilter===i?'active':''}" onclick="setBpSem(${i})">${lbl}</button>`).join('');
 
-    html += `<div class="hkb-block">
+  // Filter HKs
+  const filteredHKs = bpSemFilter===0 ? ALL_HK : ALL_HK.filter(hk=>hk.sem&&hk.sem.includes(bpSemFilter));
+  const filteredHKBs = BP.map(hkb=>({...hkb, kompetenzen:hkb.kompetenzen.filter(hk=>filteredHKs.includes(hk))})).filter(hkb=>hkb.kompetenzen.length>0);
+
+  let html='';
+  filteredHKBs.forEach(hkb=>{
+    const hkbLZK=hkb.kompetenzen.flatMap((hk,_)=>hk.lz.map((_,i)=>`${hk.id}.${i+1}`));
+    const hkbDone=hkbLZK.filter(k=>lz[k]).length;
+    html+=`<div class="hkb-block">
       <div class="hkb-hd" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')" style="border-left:3px solid ${hkb.color}">
         <span class="hkb-code" style="color:${hkb.color}">${hkb.code}</span>
         <span class="hkb-t">${hkb.titel}</span>
-        <span class="hkb-pct">${hkbDone}/${hkbLZKeys.length}</span>
+        <span class="dim" style="font-size:11px;">${hkbDone}/${hkbLZK.length} LZ</span>
         <span class="chev">▶</span>
       </div>
       <div class="hkb-body">`;
 
-    hkb.kompetenzen.forEach(hk => {
-      const lzKeys = hk.lz.map((_,i) => `${hk.id}.${i+1}`);
-      const done = lzKeys.filter(k => lz[k]).length;
-      const isDone = done === hk.lz.length;
-      const isPartial = done > 0 && !isDone;
-
-      html += `<div class="hk-row">
-        <div class="hk-status ${isDone?'done':isPartial?'partial':''}">${isDone?'✓':isPartial?'◐':''}</div>
+    hkb.kompetenzen.forEach(hk=>{
+      const lzKeys=hk.lz.map((_,i)=>`${hk.id}.${i+1}`);
+      const done=lzKeys.filter(k=>lz[k]).length;
+      const isDone=done===hk.lz.length, isP=done>0&&!isDone;
+      html+=`<div class="hk-row">
+        <div class="hk-st ${isDone?'done':isP?'part':''}">${isDone?'✓':isP?'◐':''}</div>
         <div class="hk-body">
-          <div class="hk-meta"><span class="hk-code">HK ${hk.id}</span><span class="hk-tax">${hk.tax}</span></div>
-          <div class="hk-t" onclick="toggleLZList('lzl-${hk.id.replace('.','_')}')">${hk.titel}</div>
-          <div class="hk-prog">${done}/${hk.lz.length} Leistungsziele · <span style="color:var(--dim);cursor:pointer;" onclick="toggleLZList('lzl-${hk.id.replace('.','_')}')">aufklappen ▾</span></div>
-          <div class="lz-list" id="lzl-${hk.id.replace('.','_')}">
-            ${hk.lz.map((txt,i) => {
-              const key = `${hk.id}.${i+1}`;
-              const checked = !!lz[key];
+          <div class="hk-meta">
+            <span class="hk-code">HK ${hk.id}</span>
+            <span class="hk-tax">${hk.tax}</span>
+            ${hk.sem?hk.sem.map(s=>`<span class="hk-tax" style="color:var(--blue-l);">S${s}</span>`).join(''):''}
+          </div>
+          <div class="hk-t" onclick="toggleLL('ll-${hk.id.replace('.','_')}')">${hk.titel}</div>
+          <div class="hk-prog">${done}/${hk.lz.length} Leistungsziele
+            <span class="dim" style="cursor:pointer;" onclick="toggleLL('ll-${hk.id.replace('.','_')}')"> ▾ aufklappen</span>
+          </div>
+          <div class="lz-list" id="ll-${hk.id.replace('.','_')}">
+            ${hk.lz.map((txt,i)=>{
+              const key=`${hk.id}.${i+1}`, chk=!!lz[key];
               return `<div class="lz-row" onclick="toggleLZ('${lid}','${key}',this)">
-                <div class="lz-cb ${checked?'on':''}">${checked?'✓':''}</div>
-                <div class="lz-t ${checked?'done-txt':''}">${hk.id}.${i+1} ${txt}</div>
+                <div class="lz-cb ${chk?'on':''}">${chk?'✓':''}</div>
+                <div class="lz-t ${chk?'done-t':''}">${hk.id}.${i+1} ${txt}</div>
               </div>`;
             }).join('')}
           </div>
         </div>
       </div>`;
     });
-    html += `</div></div>`;
+    html+=`</div></div>`;
   });
-  document.getElementById('bp-hkb').innerHTML = html;
+  document.getElementById('bp-hkb').innerHTML=html||'<div class="dim" style="padding:20px;text-align:center;">Keine Handlungskompetenzen für dieses Semester.</div>';
 }
 
-function toggleLZList(id) {
-  document.getElementById(id)?.classList.toggle('open');
-}
+function setBpSem(n) { bpSemFilter=n; renderBildungsplan(); }
+function toggleLL(id) { document.getElementById(id)?.classList.toggle('open'); }
 
-async function toggleLZ(lid, key, rowEl) {
-  if (!S.lzStatus[lid]) S.lzStatus[lid] = {};
-  const newVal = !S.lzStatus[lid][key];
-  S.lzStatus[lid][key] = newVal;
-
-  // Sofort UI updaten (kein Warten auf Firebase)
-  const cb = rowEl.querySelector('.lz-cb');
-  const txt = rowEl.querySelector('.lz-t');
-  cb.classList.toggle('on', newVal);
-  cb.textContent = newVal ? '✓' : '';
-  txt.classList.toggle('done-txt', newVal);
-
-  // HK-Status in der Zeile updaten
-  const hkId = key.split('.').slice(0,2).join('.');
-  const hk = ALL_HK.find(h => h.id === hkId);
-  if (hk) {
-    const lzKeys = hk.lz.map((_,i) => `${hkId}.${i+1}`);
-    const done = lzKeys.filter(k => S.lzStatus[lid]?.[k]).length;
-    const hkRow = rowEl.closest('.hk-row');
-    const stat = hkRow?.querySelector('.hk-status');
-    const prog = hkRow?.querySelector('.hk-prog');
-    if (stat) {
-      const isDone = done === hk.lz.length, isP = done > 0 && !isDone;
-      stat.className = `hk-status ${isDone?'done':isP?'partial':''}`;
-      stat.textContent = isDone ? '✓' : isP ? '◐' : '';
-    }
-    if (prog) {
-      const suf = prog.innerHTML.split('·').slice(1).join('·');
-      prog.innerHTML = `${done}/${hk.lz.length} Leistungsziele ·${suf}`;
-    }
+async function toggleLZ(lid,key,rowEl) {
+  if(!S.lzStatus[lid]) S.lzStatus[lid]={};
+  const v=!S.lzStatus[lid][key];
+  S.lzStatus[lid][key]=v;
+  const cb=rowEl.querySelector('.lz-cb'), txt=rowEl.querySelector('.lz-t');
+  cb.classList.toggle('on',v); cb.textContent=v?'✓':'';
+  txt.classList.toggle('done-t',v);
+  // update HK row
+  const hkId=key.split('.').slice(0,2).join('.');
+  const hk=ALL_HK.find(h=>h.id===hkId);
+  if(hk){
+    const lzKeys=hk.lz.map((_,i)=>`${hkId}.${i+1}`);
+    const done=lzKeys.filter(k=>S.lzStatus[lid]?.[k]).length;
+    const hkRow=rowEl.closest('.hk-row');
+    const st=hkRow?.querySelector('.hk-st'), pg=hkRow?.querySelector('.hk-prog');
+    if(st){const isDone=done===hk.lz.length,isP=done>0&&!isDone; st.className=`hk-st ${isDone?'done':isP?'part':''}`; st.textContent=isDone?'✓':isP?'◐':'';}
+    if(pg){const suf=pg.innerHTML.split('Leistungsziele')[1]; pg.innerHTML=`${done}/${hk.lz.length} Leistungsziele${suf}`;}
   }
-
-  // Gesamt-Progressbar updaten
-  const lzP = calcLZProgress(lid);
-  document.getElementById('bp-total-bar').style.width = lzP.pct + '%';
-  document.getElementById('bp-total-label').textContent = lzP.pct + '%';
-  const sub = document.getElementById('bp-sub');
-  const l = S.lehrlinge.find(x => x.id === lid);
-  if (sub && l) sub.textContent = `${l.vorname} ${l.nachname} · ${lzP.done}/${lzP.total} Leistungsziele erledigt (${lzP.pct}%)`;
-
-  // Firebase speichern
-  await saveLzStatus();
+  const lzP=calcLZProg(lid);
+  document.getElementById('bp-total-bar').style.width=lzP.pct+'%';
+  document.getElementById('bp-total-lbl').textContent=lzP.pct+'%';
+  const sub=document.getElementById('bp-sub'), ll=S.lehrlinge.find(x=>x.id===lid);
+  if(sub&&ll) sub.textContent=`${ll.vorname} ${ll.nachname} · ${lzP.done}/${lzP.total} LZ erledigt (${lzP.pct}%)`;
+  await wj(`users/${uid()}/lzStatus/data`,S.lzStatus);
 }
 
-// ════════════════════════════════════════════════════════════
-// LERNBERICHTE
-// ════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
+// LERNBERICHTE (mit Bearbeitung)
+// ══════════════════════════════════════════════════════════════════
 function renderLernberichte() {
   makeLB('lb-lb');
-  if (!currentLid) return;
-  const berichte = S.lernberichte.filter(b => b.lid === currentLid);
-
-  let html = '<div class="b-semester-grid">';
-  for (let sem = 1; sem <= 6; sem++) {
-    const semB = berichte.filter(b => b.sem == sem);
-    html += `<div class="b-sem"><div class="b-sem-label">Semester ${sem}</div>`;
-    for (let n = 0; n < Math.max(2, semB.length + 1); n++) {
-      const b = semB[n];
-      if (b) {
-        const icons = { visiert:'✅', eingereicht:'📄', offen:'○' };
-        html += `<div class="b-card ${b.status}" onclick="showBerichtDetail('${b.id}')">
-          <div class="b-card-icon">${icons[b.status]||'○'}</div>
-          <div class="b-card-t">${b.thema?.substring(0,30)||'–'}${b.thema?.length>30?'…':''}</div>
-          <div class="b-card-hk">${b.hk?'HK '+b.hk:''}</div>
-        </div>`;
-      } else {
-        html += `<div class="b-card empty" onclick="openNewBericht(${sem})">+ Neu</div>`;
-      }
-    }
-    html += '</div>';
+  if(!currentLid)return;
+  const bs=S.lernberichte.filter(b=>b.lid===currentLid);
+  let html='<div class="b-sem-grid">';
+  for(let sem=1;sem<=6;sem++){
+    const semB=bs.filter(b=>b.sem==sem);
+    html+=`<div class="b-sem"><div class="b-sem-lbl">Semester ${sem}</div>`;
+    semB.forEach(b=>{
+      const si={visiert:'✅',eingereicht:'📄',offen:'○'};
+      html+=`<div class="b-card ${b.status}" onclick="showBericht('${b.id}')">
+        <div style="font-size:16px;">${si[b.status]||'○'}</div>
+        <div style="font-size:11px;line-height:1.3;margin-top:3px;">${(b.thema||'–').substring(0,28)}${b.thema?.length>28?'…':''}</div>
+        <div style="font-size:10px;color:var(--gold);margin-top:2px;">${b.hk?'HK '+b.hk:''}</div>
+      </div>`;
+    });
+    html+=`<div class="b-card add" onclick="openNewBericht(${sem})">+ Neu</div></div>`;
   }
-  html += '</div>';
-  document.getElementById('b-grid').innerHTML = html;
+  html+='</div>';
+  document.getElementById('b-grid').innerHTML=html;
 }
 
 function openNewBericht(sem) {
-  document.getElementById('nb-sem').value = sem || '';
-  document.getElementById('nb-lid').value = currentLid || '';
+  // Reset form
+  ['nb-thema','nb-pos','nb-verb'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('nb-edit-id').value='';
+  document.getElementById('nb-modal-title').textContent='Neuer Lernbericht';
+  if(sem) document.getElementById('nb-sem').value=sem;
+  if(currentLid) document.getElementById('nb-lid').value=currentLid;
+  document.getElementById('nb-status').value='eingereicht';
   openModal('bericht');
 }
 
-function showBerichtDetail(bid) {
-  const b = S.lernberichte.find(x => x.id === bid);
-  if (!b) return;
-  const att = b.attachments || [];
-  const statusCls = { visiert:'tg', eingereicht:'ty', offen:'tb' };
-
-  document.getElementById('bd-content').innerHTML = `
-    <div class="bd-header">
-      <div>
-        <div class="bd-title">${b.thema || '(kein Titel)'}</div>
-        <div class="bd-meta">Semester ${b.sem} · ${b.hk?'HK '+b.hk:''} · ${fmtDate(b.datum)}</div>
-      </div>
-      <span class="tag ${statusCls[b.status]||'tb'}">${b.status==='visiert'?'✅ Visiert':b.status==='eingereicht'?'📄 Eingereicht':'○ Offen'}</span>
-    </div>
-
-    ${b.pos?`<div class="bd-section"><div class="bd-sec-label">Positiv aufgefallen</div><div class="bd-sec-body ok">${b.pos}</div></div>`:''}
-    ${b.verb?`<div class="bd-section"><div class="bd-sec-label">Verbesserungsmöglichkeiten</div><div class="bd-sec-body warn">${b.verb}</div></div>`:''}
-
-    ${b.status === 'eingereicht' ? `
-    <div class="bd-section">
-      <div class="bd-sec-label" style="color:var(--gold)">✍️ Jetzt visieren</div>
-      <textarea class="fi" id="fb-pos" placeholder="Positiv aufgefallen..." style="margin-bottom:8px;"></textarea>
-      <textarea class="fi" id="fb-verb" placeholder="Verbesserungsmöglichkeiten..."></textarea>
-      <div style="display:flex;gap:8px;margin-top:10px;">
-        <button class="btn btn-gold" onclick="visiereBericht('${bid}')">✓ Visieren</button>
-        <button class="btn btn-out btn-sm" onclick="loescheBericht('${bid}')">Löschen</button>
-      </div>
-    </div>` : `<div style="display:flex;gap:8px;margin-top:12px;">
-      <button class="btn btn-out btn-sm" onclick="loescheBericht('${bid}')">🗑 Löschen</button>
-    </div>`}
-
-    <div class="divider"></div>
-    <div class="bd-sec-label">📎 Anhänge (${att.length})</div>
-    ${att.length ? `<div class="att-list">${att.map(a=>`
-      <div class="att-item">
-        <span>${fileIcon(a.name)}</span>
-        <a href="${a.url}" target="_blank" class="att-name">${a.name}</a>
-        <span class="dim" style="font-size:10px;">${fmtSize(a.size||0)}</span>
-        <button class="btn btn-out btn-sm" onclick="deleteAttachment('${bid}','${a.name}','${a.url}')">✕</button>
-      </div>`).join('')}</div>` : '<div class="dim" style="font-size:12px;margin:8px 0;">Noch keine Anhänge</div>'}
-    <div class="att-zone" onclick="document.getElementById('att-file').click()"
-      ondragover="event.preventDefault();this.classList.add('drag')"
-      ondragleave="this.classList.remove('drag')"
-      ondrop="dropFiles(event,'${bid}')">
-      ☁️ PDF oder Bild ablegen / klicken
-    </div>
-    <input type="file" id="att-file" multiple accept=".pdf,image/*" style="display:none" onchange="uploadAtt(event,'${bid}')">
-  `;
-  document.getElementById('b-detail-panel').style.display = 'block';
+function editBericht(bid) {
+  const b=S.lernberichte.find(x=>x.id===bid); if(!b)return;
+  document.getElementById('nb-edit-id').value=bid;
+  document.getElementById('nb-modal-title').textContent='Lernbericht bearbeiten';
+  document.getElementById('nb-lid').value=b.lid;
+  document.getElementById('nb-sem').value=b.sem;
+  document.getElementById('nb-hk').value=b.hk||'';
+  document.getElementById('nb-thema').value=b.thema||'';
+  document.getElementById('nb-status').value=b.status;
+  document.getElementById('nb-pos').value=b.pos||'';
+  document.getElementById('nb-verb').value=b.verb||'';
+  openModal('bericht');
 }
 
 async function saveBericht() {
-  const lid = document.getElementById('nb-lid').value;
-  const thema = document.getElementById('nb-thema').value.trim();
-  if (!thema) { toast('Bitte Thema eingeben', 'red'); return; }
-  const data = {
-    lid, sem: parseInt(document.getElementById('nb-sem').value),
-    thema, hk: document.getElementById('nb-hk').value,
-    status: document.getElementById('nb-status').value,
-    pos: document.getElementById('nb-pos').value,
-    verb: document.getElementById('nb-verb').value,
-    datum: new Date().toISOString().slice(0,10),
-    attachments: []
+  const eid=document.getElementById('nb-edit-id').value;
+  const data={
+    lid:document.getElementById('nb-lid').value,
+    sem:parseInt(document.getElementById('nb-sem').value),
+    thema:document.getElementById('nb-thema').value.trim(),
+    hk:document.getElementById('nb-hk').value,
+    status:document.getElementById('nb-status').value,
+    pos:document.getElementById('nb-pos').value,
+    verb:document.getElementById('nb-verb').value,
   };
+  if(!data.thema){toast('Bitte Thema eingeben','red');return;}
   showLoading(true);
-  const id = await fbAdd(`users/${uid()}/lernberichte`, data);
-  S.lernberichte.push({ id, ...data });
+  if(eid) {
+    await upd(`users/${uid()}/lernberichte/${eid}`,data);
+    const idx=S.lernberichte.findIndex(x=>x.id===eid);
+    if(idx>-1) S.lernberichte[idx]={...S.lernberichte[idx],...data};
+    toast('✓ Bericht aktualisiert');
+  } else {
+    data.datum=new Date().toISOString().slice(0,10);
+    data.attachments=[];
+    const id=await add(`users/${uid()}/lernberichte`,data);
+    S.lernberichte.push({id,...data});
+    toast('✓ Bericht gespeichert');
+  }
   showLoading(false);
   closeModal('bericht');
-  toast('✓ Bericht gespeichert');
   renderLernberichte();
-  document.getElementById('nb-thema').value = '';
-  document.getElementById('nb-pos').value = '';
-  document.getElementById('nb-verb').value = '';
+  if(currentBerichtId) showBericht(eid||currentBerichtId);
+}
+
+function showBericht(bid) {
+  currentBerichtId=bid;
+  const b=S.lernberichte.find(x=>x.id===bid); if(!b)return;
+  const att=b.attachments||[];
+  const sc={visiert:'tg',eingereicht:'ty',offen:'tb'};
+  document.getElementById('b-detail').innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+      <div>
+        <div style="font-family:'DM Serif Display',serif;font-size:17px;">${b.thema||'(kein Titel)'}</div>
+        <div class="dim" style="font-size:11px;">Semester ${b.sem}${b.hk?' · HK '+b.hk:''}${b.datum?' · '+fmtDate(b.datum):''}</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <span class="tag ${sc[b.status]||'tb'}">${{visiert:'✅ Visiert',eingereicht:'📄 Eingereicht',offen:'○ Offen'}[b.status]||b.status}</span>
+        <button class="btn btn-out btn-sm" onclick="editBericht('${bid}')">✏️ Bearbeiten</button>
+        <button class="btn btn-sm" style="background:transparent;border:1px solid var(--red);color:var(--red-l);" onclick="deleteBericht('${bid}')">🗑</button>
+      </div>
+    </div>
+    ${b.pos?`<div class="bd-sec"><div class="bd-sec-lbl">Positiv aufgefallen</div><div class="bd-sec-body ok">${b.pos}</div></div>`:''}
+    ${b.verb?`<div class="bd-sec"><div class="bd-sec-lbl">Verbesserungsmöglichkeiten</div><div class="bd-sec-body warn">${b.verb}</div></div>`:''}
+    ${b.status==='eingereicht'?`<div class="bd-sec">
+      <div class="bd-sec-lbl" style="color:var(--gold)">✍️ Jetzt visieren</div>
+      <textarea class="fi" id="fb-pos" placeholder="Positiv aufgefallen..."></textarea>
+      <textarea class="fi" id="fb-verb" placeholder="Verbesserungsmöglichkeiten..." style="margin-top:6px;"></textarea>
+      <button class="btn btn-gold" style="margin-top:8px;" onclick="visiereBericht('${bid}')">✓ Visieren</button>
+    </div>`:''}
+    <div class="divider"></div>
+    <div class="bd-sec-lbl">📎 Anhänge (${att.length})</div>
+    ${att.length?`<div class="att-list">${att.map(a=>`
+      <div class="att-item">
+        <span>${fileIcon(a.name)}</span>
+        <a href="${a.url}" target="_blank" class="att-name">${a.name}</a>
+        <span class="dim">${fmtSize(a.size||0)}</span>
+        <button class="btn btn-out btn-sm" onclick="delAtt('${bid}','${a.name}','${encodeURIComponent(a.path||'')}')">✕</button>
+      </div>`).join('')}</div>`:'<div class="dim" style="font-size:12px;margin:8px 0;">Noch keine Anhänge.</div>'}
+    <div class="att-zone" onclick="document.getElementById('att-f').click()"
+      ondragover="event.preventDefault();this.classList.add('drag')"
+      ondragleave="this.classList.remove('drag')"
+      ondrop="dropAtt(event,'${bid}')">☁️ PDF oder Bild ablegen / klicken zum Hochladen</div>
+    <input type="file" id="att-f" multiple accept=".pdf,image/*" style="display:none" onchange="uploadAtt(event,'${bid}')">`;
+  document.getElementById('b-detail').style.display='block';
 }
 
 async function visiereBericht(bid) {
-  const pos = document.getElementById('fb-pos')?.value || '';
-  const verb = document.getElementById('fb-verb')?.value || '';
-  await updateDoc(doc(db, `users/${uid()}/lernberichte/${bid}`), { status:'visiert', pos, verb });
-  const b = S.lernberichte.find(x => x.id === bid);
-  if (b) { b.status = 'visiert'; b.pos = pos; b.verb = verb; }
+  const pos=document.getElementById('fb-pos')?.value||'';
+  const verb=document.getElementById('fb-verb')?.value||'';
+  await upd(`users/${uid()}/lernberichte/${bid}`,{status:'visiert',pos,verb});
+  const b=S.lernberichte.find(x=>x.id===bid);
+  if(b){b.status='visiert';b.pos=pos;b.verb=verb;}
   toast('✓ Bericht visiert');
-  renderLernberichte();
-  showBerichtDetail(bid);
+  renderLernberichte(); showBericht(bid);
 }
 
-async function loescheBericht(bid) {
-  if (!confirm('Bericht löschen?')) return;
-  await fbDel(`users/${uid()}/lernberichte/${bid}`);
-  S.lernberichte = S.lernberichte.filter(x => x.id !== bid);
-  document.getElementById('b-detail-panel').style.display = 'none';
-  toast('Bericht gelöscht');
-  renderLernberichte();
+async function deleteBericht(bid) {
+  if(!confirm('Bericht löschen?'))return;
+  await del(`users/${uid()}/lernberichte/${bid}`);
+  S.lernberichte=S.lernberichte.filter(x=>x.id!==bid);
+  document.getElementById('b-detail').style.display='none';
+  currentBerichtId=null;
+  toast('Bericht gelöscht'); renderLernberichte();
 }
 
-// Upload
-async function uploadAtt(event, bid) {
-  const files = Array.from(event.target.files);
-  await doUpload(files, bid);
-}
-async function dropFiles(event, bid) {
-  event.preventDefault();
-  event.currentTarget.classList.remove('drag');
-  await doUpload(Array.from(event.dataTransfer.files), bid);
-}
-
-async function doUpload(files, bid) {
-  if (!files.length) return;
+async function uploadAtt(event,bid) { await doUpload(Array.from(event.target.files),bid); }
+async function dropAtt(event,bid) { event.preventDefault(); event.currentTarget.classList.remove('drag'); await doUpload(Array.from(event.dataTransfer.files),bid); }
+async function doUpload(files,bid) {
+  if(!files.length)return;
   showLoading(true);
-  const b = S.lernberichte.find(x => x.id === bid);
-  if (!b) { showLoading(false); return; }
-  if (!b.attachments) b.attachments = [];
-  for (const file of files) {
-    const storRef = ref(stor, `users/${uid()}/${bid}/${Date.now()}_${file.name}`);
-    await uploadBytes(storRef, file);
-    const url = await getDownloadURL(storRef);
-    b.attachments.push({ name: file.name, url, size: file.size, path: storRef.fullPath });
+  const b=S.lernberichte.find(x=>x.id===bid); if(!b)return;
+  if(!b.attachments)b.attachments=[];
+  for(const file of files){
+    const sRef=ref(stor,`users/${uid()}/${bid}/${Date.now()}_${file.name}`);
+    await uploadBytes(sRef,file);
+    const url=await getDownloadURL(sRef);
+    b.attachments.push({name:file.name,url,size:file.size,path:sRef.fullPath});
   }
-  await updateDoc(doc(db, `users/${uid()}/lernberichte/${bid}`), { attachments: b.attachments });
+  await upd(`users/${uid()}/lernberichte/${bid}`,{attachments:b.attachments});
   showLoading(false);
   toast(`✓ ${files.length} Datei(en) hochgeladen`);
-  showBerichtDetail(bid);
+  showBericht(bid);
+}
+async function delAtt(bid,name,encodedPath) {
+  if(!confirm(`"${name}" löschen?`))return;
+  const b=S.lernberichte.find(x=>x.id===bid); if(!b)return;
+  const path=decodeURIComponent(encodedPath);
+  if(path){try{await deleteObject(ref(stor,path));}catch(e){}}
+  b.attachments=(b.attachments||[]).filter(a=>a.name!==name);
+  await upd(`users/${uid()}/lernberichte/${bid}`,{attachments:b.attachments});
+  toast('Anhang gelöscht'); showBericht(bid);
 }
 
-async function deleteAttachment(bid, name, url) {
-  if (!confirm(`"${name}" löschen?`)) return;
-  const b = S.lernberichte.find(x => x.id === bid);
-  if (!b) return;
-  const att = b.attachments.find(a => a.name === name);
-  if (att?.path) { try { await deleteObject(ref(stor, att.path)); } catch(e) {} }
-  b.attachments = b.attachments.filter(a => a.name !== name);
-  await updateDoc(doc(db, `users/${uid()}/lernberichte/${bid}`), { attachments: b.attachments });
-  toast('Anhang gelöscht');
-  showBerichtDetail(bid);
-}
-
-// ════════════════════════════════════════════════════════════
-// BILDUNGSBERICHT
-// ════════════════════════════════════════════════════════════
-const BB_DIM = [
-  { k:'fach',    label:'Fachkompetenz',    desc:'Berufsspezifisches Wissen und Können' },
-  { k:'methode', label:'Methodenkompetenz',desc:'Planung, Arbeitstechniken, Prozessdenken' },
-  { k:'sozial',  label:'Sozialkompetenz',  desc:'Kommunikation, Team, Konflikt' },
-  { k:'selbst',  label:'Selbstkompetenz',  desc:'Eigenverantwortung, Reflexion, Zuverlässigkeit' }
-];
-const STAR_LABELS = ['','Ungenügend','Schwach','Ausreichend','Gut','Sehr gut','Ausgezeichnet'];
-
+// ══════════════════════════════════════════════════════════════════
+// BILDUNGSBERICHT (mit Abteilungs-Rollen)
+// ══════════════════════════════════════════════════════════════════
 function renderBildungsbericht() {
   makeLB('bb-lb');
-  const bew = S.bewertungen[currentLid] || {};
-  document.getElementById('bb-ratings').innerHTML = BB_DIM.map(d => `
-    <div class="rating-row">
-      <div>
-        <div style="font-size:13px;">${d.label}</div>
-        <div class="dim" style="font-size:11px;">${d.desc}</div>
-      </div>
-      <div>
-        <div class="stars" id="s-${d.k}">
-          ${[1,2,3,4,5,6].map(n=>`<div class="star ${(bew[d.k]||0)>=n?'on':''}" onclick="setStar('${d.k}',${n})"></div>`).join('')}
-        </div>
-        <div class="dim" style="font-size:10px;text-align:right;margin-top:2px;" id="sl-${d.k}">${STAR_LABELS[bew[d.k]||0]}</div>
-      </div>
-    </div>`).join('');
-  document.getElementById('bb-bem').value = bew.bem || '';
-}
+  if(!currentLid)return;
+  const bew=S.bewertungen[currentLid]||{};
 
-function setStar(key, n) {
-  if (!S.bewertungen[currentLid]) S.bewertungen[currentLid] = {};
-  S.bewertungen[currentLid][key] = n;
-  document.getElementById('s-'+key).querySelectorAll('.star').forEach((s,i) => s.classList.toggle('on', i<n));
-  document.getElementById('sl-'+key).textContent = STAR_LABELS[n];
-}
-
-async function generateBB() {
-  if (!currentLid) return;
-  S.bewertungen[currentLid] = S.bewertungen[currentLid] || {};
-  S.bewertungen[currentLid].bem = document.getElementById('bb-bem').value;
-  await saveBewertungen();
-  const l = S.lehrlinge.find(x => x.id === currentLid);
-  const bew = S.bewertungen[currentLid];
-  const lzP = calcLZProgress(currentLid);
-  const hkSt = calcHKStatus(currentLid);
-  const hkDone = Object.values(hkSt).filter(v=>v===2).length;
-  const vis = S.lernberichte.filter(b=>b.lid===currentLid&&b.status==='visiert').length;
-
-  document.getElementById('bb-preview').innerHTML = `
-    <div class="bb-prev-inner">
-      <div class="bb-prev-title">Bildungsbericht</div>
-      <div class="bb-prev-subtitle">Hotel-Kommunikationsfachfrau/-mann EFZ · ${new Date().toLocaleDateString('de-CH')}</div>
-      <div class="divider"></div>
-      <div class="bb-prev-section">
-        <div class="bb-prev-h">Lernende/r</div>
-        <div>${l?.vorname} ${l?.nachname} · ${l?.lj}. Lehrjahr · Start: ${l?.start}</div>
+  // Eigene Abteilung wählen / Rolle
+  const roleHtml=`
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-t">Meine Rolle</div>
+      <div class="card-s">Wähle deine Abteilung für die Beurteilung</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn ${userRole==='admin'?'btn-gold':'btn-out'}" onclick="setRole('admin',null)">👤 Berufsbildner (Admin)</button>
+        ${ABTEILUNGEN.map(a=>`<button class="btn ${userRole==='abt'&&userAbteilung===a.id?'btn-gold':'btn-out'}" onclick="setRole('abt','${a.id}')">${a.icon} ${a.label}</button>`).join('')}
       </div>
-      <div class="bb-prev-section">
-        <div class="bb-prev-h">Beurteilung Kompetenzdimensionen</div>
-        ${BB_DIM.map(d=>`
-        <div class="bb-prev-row">
-          <span>${d.label}</span>
-          <span style="display:flex;gap:3px;align-items:center;">
-            ${[1,2,3,4,5,6].map(n=>`<div style="width:11px;height:11px;border-radius:2px;background:${(bew[d.k]||0)>=n?'#C9A84C':'#3D3530'}"></div>`).join('')}
-            <span style="margin-left:6px;font-size:12px;">${STAR_LABELS[bew[d.k]||0]} (${bew[d.k]||0}/6)</span>
-          </span>
-        </div>`).join('')}
-      </div>
-      <div class="bb-prev-section">
-        <div class="bb-prev-h">Lernfortschritt</div>
-        <div>Abgeschlossene Handlungskompetenzen: ${hkDone}/21</div>
-        <div>Leistungsziele erledigt: ${lzP.done}/${lzP.total} (${lzP.pct}%)</div>
-        <div>Visierte Lernberichte: ${vis}</div>
-      </div>
-      ${bew.bem?`<div class="bb-prev-section"><div class="bb-prev-h">Bemerkungen</div><div>${bew.bem}</div></div>`:''}
-      <div class="divider" style="margin-top:24px;"></div>
-      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--dim);">
-        <span>Berufsbildner/in: ______________________</span>
-        <span>${new Date().toLocaleDateString('de-CH')}</span>
-      </div>
-      <div style="font-size:10px;color:var(--dim);margin-top:6px;">Bildungsplan Hotel-KoFa EFZ · Hotel & Gastro formation · Berufsnummer 79200</div>
     </div>`;
-  toast('✓ Bildungsbericht erstellt');
+  document.getElementById('bb-role').innerHTML=roleHtml;
+
+  // Bewertungsformular für aktuelle Rolle
+  let formHtml='';
+  if(userRole==='admin') {
+    // Admin sieht alle Abteilungen + eigene finale Bewertung
+    formHtml+=`<div class="card" style="margin-bottom:14px;"><div class="card-t">Abteilungsbewertungen (Übersicht)</div><div class="card-s">Bewertungen aller Abteilungsleiter</div>`;
+    ABTEILUNGEN.forEach(abt=>{
+      const ab=bew[`abt_${abt.id}`]||{};
+      const hasData=BB_KRITERIEN.some(k=>ab[k.k]);
+      formHtml+=`<div style="margin-bottom:10px;padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border);">
+        <div style="font-size:12px;font-weight:600;margin-bottom:6px;">${abt.icon} ${abt.label} ${hasData?'':'<span class="tag tb" style="margin-left:4px;">Ausstehend</span>'}</div>
+        ${BB_KRITERIEN.map(k=>`<div class="rating-row">
+          <span style="font-size:11px;">${k.label}</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            ${[1,2,3,4,5,6].map(n=>`<div style="width:11px;height:11px;border-radius:2px;background:${(ab[k.k]||0)>=n?'#C9A84C':'#2E2A24'}"></div>`).join('')}
+            <span class="dim" style="font-size:10px;">${STAR_LBL[ab[k.k]||0]}</span>
+          </div>
+        </div>`).join('')}
+        ${ab.kommentar?`<div style="font-size:11px;color:var(--dim);margin-top:6px;font-style:italic;">"${ab.kommentar}"</div>`:''}
+      </div>`;
+    });
+    formHtml+='</div>';
+
+    // Finale Bewertung Berufsbildner
+    const fin=bew.final||{};
+    formHtml+=`<div class="card"><div class="card-t">Finale Beurteilung (Berufsbildner)</div><div class="card-s">1 = Ungenügend · 6 = Ausgezeichnet</div>
+      <div id="bb-ratings-final">`;
+    BB_KRITERIEN.forEach(k=>{
+      formHtml+=`<div class="rating-row"><div><div style="font-size:13px;">${k.label}</div><div class="dim" style="font-size:10px;">${k.desc}</div></div>
+        <div><div class="stars" id="sf-${k.k}">
+          ${[1,2,3,4,5,6].map(n=>`<div class="star ${(fin[k.k]||0)>=n?'on':''}" onclick="setStarFinal('${k.k}',${n})"></div>`).join('')}
+        </div>
+        <div class="dim" style="font-size:10px;text-align:right;margin-top:2px;" id="sfl-${k.k}">${STAR_LBL[fin[k.k]||0]}</div>
+        </div>
+      </div>`;
+    });
+    formHtml+=`</div>
+      <label class="fl">Allgemeine Bemerkungen (Berufsbildner)</label>
+      <textarea class="fi" id="bb-bem-final" placeholder="Allgemeine Beurteilung, Stärken, Entwicklungsfelder...">${fin.bem||''}</textarea>
+      <div style="margin-top:10px;display:flex;gap:8px;">
+        <button class="btn btn-gold" onclick="saveFinalBew()">💾 Finale Bewertung speichern</button>
+        <button class="btn btn-out" onclick="generateBB()">📋 Bericht generieren</button>
+      </div>
+    </div>`;
+  } else {
+    // Abteilung: nur eigene Bewertung
+    const abtId=userAbteilung;
+    const abt=ABTEILUNGEN.find(a=>a.id===abtId);
+    const ab=bew[`abt_${abtId}`]||{};
+    formHtml+=`<div class="card"><div class="card-t">${abt?.icon} Beurteilung ${abt?.label}</div><div class="card-s">Deine Bewertung für diesen Lernenden</div>`;
+    BB_KRITERIEN.forEach(k=>{
+      formHtml+=`<div class="rating-row"><div><div style="font-size:13px;">${k.label}</div><div class="dim" style="font-size:10px;">${k.desc}</div></div>
+        <div><div class="stars" id="sa-${k.k}">
+          ${[1,2,3,4,5,6].map(n=>`<div class="star ${(ab[k.k]||0)>=n?'on':''}" onclick="setStarAbt('${k.k}',${n})"></div>`).join('')}
+        </div>
+        <div class="dim" style="font-size:10px;text-align:right;margin-top:2px;" id="sal-${k.k}">${STAR_LBL[ab[k.k]||0]}</div>
+        </div>
+      </div>`;
+    });
+    formHtml+=`<label class="fl">Kommentar</label>
+      <textarea class="fi" id="bb-abt-kom" placeholder="Beobachtungen, Stärken, Verbesserungspotenzial...">${ab.kommentar||''}</textarea>
+      <button class="btn btn-gold" style="margin-top:10px;" onclick="saveAbtBew()">💾 Bewertung speichern</button>
+    </div>`;
+  }
+  document.getElementById('bb-form').innerHTML=formHtml;
 }
 
-// ════════════════════════════════════════════════════════════
-// QV VORBEREITUNG
-// ════════════════════════════════════════════════════════════
+function setRole(role, abt) { userRole=role; userAbteilung=abt; renderBildungsbericht(); }
+
+function setStarFinal(key,n) {
+  if(!S.bewertungen[currentLid]) S.bewertungen[currentLid]={};
+  if(!S.bewertungen[currentLid].final) S.bewertungen[currentLid].final={};
+  S.bewertungen[currentLid].final[key]=n;
+  document.getElementById('sf-'+key)?.querySelectorAll('.star').forEach((s,i)=>s.classList.toggle('on',i<n));
+  const lbl=document.getElementById('sfl-'+key); if(lbl) lbl.textContent=STAR_LBL[n];
+}
+function setStarAbt(key,n) {
+  if(!S.bewertungen[currentLid]) S.bewertungen[currentLid]={};
+  const akey=`abt_${userAbteilung}`;
+  if(!S.bewertungen[currentLid][akey]) S.bewertungen[currentLid][akey]={};
+  S.bewertungen[currentLid][akey][key]=n;
+  document.getElementById('sa-'+key)?.querySelectorAll('.star').forEach((s,i)=>s.classList.toggle('on',i<n));
+  const lbl=document.getElementById('sal-'+key); if(lbl) lbl.textContent=STAR_LBL[n];
+}
+
+async function saveFinalBew() {
+  if(!S.bewertungen[currentLid]) S.bewertungen[currentLid]={};
+  if(!S.bewertungen[currentLid].final) S.bewertungen[currentLid].final={};
+  S.bewertungen[currentLid].final.bem=document.getElementById('bb-bem-final')?.value||'';
+  await wj(`users/${uid()}/bewertungen/data`,S.bewertungen);
+  toast('✓ Finale Bewertung gespeichert');
+}
+async function saveAbtBew() {
+  if(!S.bewertungen[currentLid]) S.bewertungen[currentLid]={};
+  const akey=`abt_${userAbteilung}`;
+  if(!S.bewertungen[currentLid][akey]) S.bewertungen[currentLid][akey]={};
+  S.bewertungen[currentLid][akey].kommentar=document.getElementById('bb-abt-kom')?.value||'';
+  await wj(`users/${uid()}/bewertungen/data`,S.bewertungen);
+  toast('✓ Bewertung gespeichert');
+}
+
+function generateBB() {
+  const l=S.lehrlinge.find(x=>x.id===currentLid); if(!l)return;
+  const bew=S.bewertungen[currentLid]||{};
+  const fin=bew.final||{};
+  const lzP=calcLZProg(currentLid);
+  const hkSt=calcHKStatus(currentLid);
+  const hkDone=Object.values(hkSt).filter(v=>v===2).length;
+  const vis=S.lernberichte.filter(b=>b.lid===currentLid&&b.status==='visiert').length;
+  document.getElementById('bb-preview').innerHTML=`
+    <div class="bb-prev">
+      <div style="font-family:'DM Serif Display',serif;font-size:20px;">Bildungsbericht</div>
+      <div class="dim" style="font-size:11px;margin-bottom:10px;">Hotel-Kommunikationsfachfrau/-mann EFZ · ${new Date().toLocaleDateString('de-CH')}</div>
+      <div class="divider"></div>
+      <div class="bb-prev-h">Lernende/r</div>
+      <div>${l.vorname} ${l.nachname} · ${l.lj}. Lehrjahr · Start: ${l.start}</div>
+      <div class="bb-prev-h" style="margin-top:12px;">Abteilungsbewertungen</div>
+      ${ABTEILUNGEN.map(abt=>{const ab=bew[`abt_${abt.id}`]||{}; return `
+        <div style="margin-bottom:6px;"><b>${abt.icon} ${abt.label}</b>
+          ${BB_KRITERIEN.map(k=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;"><span>${k.label}</span><span style="color:${ab[k.k]?'var(--gold)':'var(--dim)'};">${STAR_LBL[ab[k.k]||0]} (${ab[k.k]||'–'}/6)</span></div>`).join('')}
+          ${ab.kommentar?`<div class="dim" style="font-size:10px;font-style:italic;margin-top:2px;">"${ab.kommentar}"</div>`:''}
+        </div>`}).join('')}
+      <div class="bb-prev-h" style="margin-top:12px;">Finale Beurteilung Berufsbildner</div>
+      ${BB_KRITERIEN.map(k=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span>${k.label}</span><span style="color:var(--gold);">${STAR_LBL[fin[k.k]||0]} (${fin[k.k]||'–'}/6)</span></div>`).join('')}
+      ${fin.bem?`<div style="margin-top:8px;font-size:12px;">${fin.bem}</div>`:''}
+      <div class="bb-prev-h" style="margin-top:12px;">Lernfortschritt</div>
+      <div style="font-size:12px;">HK abgeschlossen: ${hkDone}/21 · LZ: ${lzP.done}/${lzP.total} (${lzP.pct}%) · Visierte Lernberichte: ${vis}</div>
+      <div class="divider" style="margin-top:20px;"></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--dim);">
+        <span>Berufsbildner/in: _____________________</span><span>${new Date().toLocaleDateString('de-CH')}</span>
+      </div>
+      <div class="dim" style="font-size:10px;margin-top:5px;">Bildungsplan Hotel-KoFa EFZ · Berufsnummer 79200</div>
+    </div>`;
+  toast('✓ Bildungsbericht generiert');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// QV VORBEREITUNG (mit Szenarien & Aufgaben)
+// ══════════════════════════════════════════════════════════════════
 function renderQV() {
   makeLB('qv-lb');
-  if (!currentLid) return;
-  document.getElementById('qv-days').textContent = Math.max(0, Math.ceil((new Date('2026-07-01')-new Date())/86400000));
-  const hkSt = calcHKStatus(currentLid);
-  const lzP = calcLZProgress(currentLid);
+  if(!currentLid)return;
+  const hkSt=calcHKStatus(currentLid);
+  const lzP=calcLZProg(currentLid);
+  const days=Math.max(0,Math.ceil((new Date(S.einstellungen.qvDatum||'2026-07-01')-new Date())/86400000));
+  document.getElementById('qv-days').textContent=days;
+  document.getElementById('qv-lz-pct').textContent=lzP.pct+'%';
+  document.getElementById('qv-lz-bar').style.width=lzP.pct+'%';
 
-  let html = '';
-  BP.forEach(hkb => {
-    const ids = hkb.kompetenzen.map(k=>k.id);
-    const done = ids.filter(id=>hkSt[id]===2).length;
-    const pct = done/ids.length;
-    const aClass = pct>=.8?'g':pct>=.5?'y':'r';
-    const aLabel = pct>=.8?'Bereit':'pct'>=.5?'Üben':'Dringend';
-
-    html += `<div class="qv-block" style="border-left:3px solid ${hkb.color}">
-      <div class="qv-hkb-row">
-        <div class="amp ${aClass}"></div>
-        <div style="flex:1;">
-          <div style="font-size:12px;font-weight:600;">${hkb.code}: ${hkb.titel}</div>
-          <div class="dim" style="font-size:11px;">${done}/${ids.length} Handlungskompetenzen abgeschlossen</div>
-        </div>
-        <span class="tag ${aClass==='g'?'tg':aClass==='y'?'ty':'tr'}">${done}/${ids.length} HK</span>
+  // HKB Bereitschaft
+  let hkbHtml='';
+  BP.forEach(hkb=>{
+    const ids=hkb.kompetenzen.map(k=>k.id);
+    const done=ids.filter(id=>hkSt[id]===2).length;
+    const pct=done/ids.length;
+    const ac=pct>=.8?'g':pct>=.5?'y':'r';
+    hkbHtml+=`<div class="qv-block" style="border-left:3px solid ${hkb.color}">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <div class="amp ${ac}"></div>
+        <div style="font-size:12px;font-weight:600;flex:1;">${hkb.code}: ${hkb.titel}</div>
+        <span class="tag ${ac==='g'?'tg':ac==='y'?'ty':'tr'}">${done}/${ids.length} HK</span>
       </div>
-      ${hkb.kompetenzen.map(hk => {
-        const s = hkSt[hk.id]||0;
-        const ac = s===2?'g':s===1?'y':'r';
-        return `<div class="qv-hk-row">
-          <div class="amp ${ac}" style="width:8px;height:8px;"></div>
+      ${hkb.kompetenzen.map(hk=>{const s=hkSt[hk.id]||0;const ac2=s===2?'g':s===1?'y':'r';return `
+        <div style="display:flex;align-items:center;gap:8px;padding:4px 8px;">
+          <div class="amp ${ac2}" style="width:8px;height:8px;"></div>
           <span class="dim" style="font-size:11px;flex:1;">HK ${hk.id}: ${hk.titel}</span>
-          <span class="tag ${ac==='g'?'tg':ac==='y'?'ty':'tr'}">${ac==='g'?'✓':ac==='y'?'Teil.':'Offen'}</span>
-        </div>`;
-      }).join('')}
+          <span class="tag ${ac2==='g'?'tg':ac2==='y'?'ty':'tr'}">${ac2==='g'?'✓':ac2==='y'?'Teil.':'Offen'}</span>
+        </div>`}).join('')}
     </div>`;
   });
-  document.getElementById('qv-status').innerHTML = html;
+  document.getElementById('qv-hkb').innerHTML=hkbHtml;
 
-  document.getElementById('qv-overall-pct').textContent = lzP.pct + '%';
-  document.getElementById('qv-overall-bar').style.width = lzP.pct + '%';
-}
-
-// ════════════════════════════════════════════════════════════
-// EINSATZPLAN
-// ════════════════════════════════════════════════════════════
-let weekOff = 0;
-const WDAYS = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
-const ABTS = [
-  {k:'empfang',l:'Empfang',cls:'ae'},
-  {k:'reservierung',l:'Reservierung',cls:'ar'},
-  {k:'kommunikation',l:'Kommunikation',cls:'ak'},
-  {k:'service',l:'Service/F&B',cls:'as'},
-  {k:'housekeeping',l:'Housekeeping',cls:'ah'},
-  {k:'schule',l:'Schule/ÜK',cls:'af'},
-  {k:'frei',l:'Frei',cls:'af'}
-];
-const DEMO_EINS = {
-  l1: ['empfang','empfang','reservierung','reservierung','frei'],
-  l2: ['kommunikation','kommunikation','empfang','frei','empfang'],
-  l3: ['service','housekeeping','service','empfang','schule']
-};
-
-function getKW(d) {
-  const t = new Date(d); t.setHours(0,0,0,0); t.setDate(t.getDate()+3-(t.getDay()+6)%7);
-  const w1 = new Date(t.getFullYear(),0,4);
-  return 1 + Math.round(((t-w1)/86400000-3+(w1.getDay()+6)%7)/7);
-}
-
-function changeWeek(n) { weekOff = n===0?0:weekOff+n; renderEinsatz(); }
-
-function renderEinsatz() {
-  const now = new Date();
-  const mon = new Date(now); mon.setDate(now.getDate() - (now.getDay()||7) + 1 + weekOff*7);
-  const fri = new Date(mon.getTime() + 4*86400000);
-  document.getElementById('kw-label').textContent =
-    `KW ${getKW(mon)} · ${mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'})} – ${fri.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit',year:'numeric'})}`;
-
-  // Grid
-  const cols = S.lehrlinge.length || 1;
-  let grid = `<div class="ep-grid" style="grid-template-columns:100px repeat(${cols},1fr)">`;
-  grid += '<div class="ep-h"></div>' + S.lehrlinge.map(l=>`<div class="ep-h">${l.vorname}</div>`).join('');
-  WDAYS.forEach((day,di) => {
-    const d = new Date(mon.getTime()+di*86400000);
-    grid += `<div class="ep-day">${day}<br><span class="dim" style="font-size:10px;">${d.toLocaleDateString('de-CH',{day:'numeric',month:'numeric'})}</span></div>`;
-    S.lehrlinge.forEach(l => {
-      const abtKey = DEMO_EINS[l.id]?.[di] || 'frei';
-      const abt = ABTS.find(a=>a.k===abtKey)||ABTS[ABTS.length-1];
-      grid += `<div class="ep-cell ${abt.cls}">${abt.l}</div>`;
-    });
+  // Szenarien
+  const bew=S.bewertungen[currentLid]||{};
+  let szHtml='';
+  QV_SZENARIEN.forEach(sz=>{
+    const done=(bew[`sz_${sz.id}`]||[]);
+    const allDone=done.length===sz.aufgaben.length;
+    szHtml+=`<div class="qv-sz-card">
+      <div class="qv-sz-hd">
+        <div>
+          <div style="font-size:13px;font-weight:600;">${sz.titel}</div>
+          <div class="dim" style="font-size:11px;margin-top:2px;">${sz.beschreibung}</div>
+        </div>
+        <span class="tag ${allDone?'tg':done.length>0?'ty':'tr'}">${done.length}/${sz.aufgaben.length}</span>
+      </div>
+      <div style="margin-top:8px;">
+        ${sz.aufgaben.map((a,i)=>{
+          const isDone=done.includes(i);
+          return `<div class="lz-row" onclick="toggleSzAufgabe('${sz.id}',${i},this)">
+            <div class="lz-cb ${isDone?'on':''}">${isDone?'✓':''}</div>
+            <div class="lz-t ${isDone?'done-t':''}">${a}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
   });
-  grid += '</div>';
-  document.getElementById('ep-grid').innerHTML = grid;
+  document.getElementById('qv-szenarien').innerHTML=szHtml;
 }
 
-// ════════════════════════════════════════════════════════════
-// KI ASSISTENT
-// ════════════════════════════════════════════════════════════
-const KI_SYSTEM = `Du bist ein erfahrener Berufsbildungsexperte für Hotel-Kommunikationsfachfrau/-mann EFZ (Berufsnummer 79200). Du kennst den Bildungsplan von Hotel & Gastro formation (2017) mit allen 4 HKBs, 21 Handlungskompetenzen (HK 1.1–4.4) und allen Leistungszielen (K1–K6 nach Bloom). Das Qualifikationsverfahren besteht aus CPEX (3 Situationen) und PEX (Fachgespräch) sowie Berufskenntnisse. Antworte praxisnah auf Deutsch für Berufsbildner/innen in Hotelbetrieben. Sei konkret und hilfreich.`;
-
-async function saveApiKey() {
-  const key = document.getElementById('ki-key').value.trim();
-  S.einstellungen.apiKey = key;
-  await saveEinstellungen();
-  document.getElementById('ki-status').innerHTML = key.startsWith('sk-ant-')
-    ? '<span style="color:var(--green-l)">✓ Gespeichert</span>'
-    : '<span style="color:var(--yellow)">⚠ Kein gültiger Key</span>';
+async function toggleSzAufgabe(szId,idx,rowEl) {
+  if(!S.bewertungen[currentLid]) S.bewertungen[currentLid]={};
+  const key=`sz_${szId}`;
+  const arr=S.bewertungen[currentLid][key]||[];
+  const pos=arr.indexOf(idx);
+  if(pos>-1) arr.splice(pos,1); else arr.push(idx);
+  S.bewertungen[currentLid][key]=arr;
+  const cb=rowEl.querySelector('.lz-cb'), txt=rowEl.querySelector('.lz-t');
+  const isDone=arr.includes(idx);
+  cb.classList.toggle('on',isDone); cb.textContent=isDone?'✓':'';
+  txt.classList.toggle('done-t',isDone);
+  // Update counter
+  const sz=QV_SZENARIEN.find(s=>s.id===szId);
+  const card=rowEl.closest('.qv-sz-card');
+  const ctr=card?.querySelector('.tag');
+  if(ctr&&sz) {ctr.textContent=`${arr.length}/${sz.aufgaben.length}`; const ac=arr.length===sz.aufgaben.length?'tg':arr.length>0?'ty':'tr'; ctr.className=`tag ${ac}`;}
+  await wj(`users/${uid()}/bewertungen/data`,S.bewertungen);
 }
 
-function qAsk(txt) { document.getElementById('ki-in').value = txt; kiSend(); }
+// ══════════════════════════════════════════════════════════════════
+// EINSATZPLAN (Drag & Drop, Wochen + Tage)
+// ══════════════════════════════════════════════════════════════════
+let epView='week'; // 'week' | 'day'
+let epWeekOff=0;
+let epDayOff=0;
+const WDAYS_SHORT=['Mo','Di','Mi','Do','Fr'];
+const WDAYS_FULL=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
+const ABTS=[
+  {k:'empfang',    l:'Empfang',      cls:'ae', icon:'🛎️'},
+  {k:'reservierung',l:'Reservierung', cls:'ar', icon:'📞'},
+  {k:'kommunikation',l:'Kommunikation',cls:'ak',icon:'💬'},
+  {k:'service',    l:'Service/F&B',   cls:'as', icon:'🍽️'},
+  {k:'housekeeping',l:'Housekeeping', cls:'ah', icon:'🛏️'},
+  {k:'administration',l:'Administration',cls:'aa',icon:'💼'},
+  {k:'schule',     l:'Schule/ÜK',    cls:'af', icon:'🏫'},
+  {k:'frei',       l:'Frei',         cls:'af', icon:'🌿'}
+];
 
-async function kiSend() {
-  const el = document.getElementById('ki-in');
-  const text = el.value.trim();
-  if (!text) return;
-  const key = S.einstellungen.apiKey || document.getElementById('ki-key').value.trim();
-  if (!key.startsWith('sk-ant-')) {
-    addMsg('assistant','⚠️ Bitte gib zuerst deinen Anthropic API-Key ein.');
-    return;
-  }
-  addMsg('user', text);
-  el.value = '';
-  el.style.height = 'auto';
-  kiHistory.push({ role:'user', content:text });
-  const tid = 'ki-' + Date.now();
-  addMsg('assistant', '<span class="ki-thinking">●●●</span>', tid);
-  try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1500, system:KI_SYSTEM, messages:kiHistory })
+function getKW(d){const t=new Date(d);t.setHours(0,0,0,0);t.setDate(t.getDate()+3-(t.getDay()+6)%7);const w1=new Date(t.getFullYear(),0,4);return 1+Math.round(((t-w1)/86400000-3+(w1.getDay()+6)%7)/7);}
+function getMon(off=0){const now=new Date();const mon=new Date(now);mon.setDate(now.getDate()-((now.getDay()||7)-1)+off*7);mon.setHours(0,0,0,0);return mon;}
+function getDay(off=0){const now=new Date();const d=new Date(now);d.setDate(now.getDate()+off);d.setHours(0,0,0,0);return d;}
+function dateKey(d){return d.toISOString().slice(0,10);}
+
+function changeWeek(n){epWeekOff=n===0?0:epWeekOff+n;renderEinsatz();}
+function changeDay(n){epDayOff=n===0?0:epDayOff+n;renderEinsatz();}
+function setEpView(v){epView=v;renderEinsatz();}
+
+function getEpSlot(lid,dateStr,slot='day'){
+  return (S.einsatzplan[lid]||{})[dateStr]||null;
+}
+function setEpSlot(lid,dateStr,abtKey){
+  if(!S.einsatzplan[lid]) S.einsatzplan[lid]={};
+  S.einsatzplan[lid][dateStr]=abtKey;
+}
+
+function renderEinsatz(){
+  // View Toggle
+  document.querySelectorAll('.ep-view-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById(`epv-${epView}`)?.classList.add('active');
+
+  if(epView==='week') renderEinsatzWeek();
+  else renderEinsatzDay();
+}
+
+function renderEinsatzWeek(){
+  const mon=getMon(epWeekOff);
+  const fri=new Date(mon.getTime()+4*86400000);
+  document.getElementById('ep-label').textContent=`KW ${getKW(mon)} · ${mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'})} – ${fri.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit',year:'numeric'})}`;
+
+  const cols=S.lehrlinge.length||1;
+  let html=`<div class="ep-grid" style="grid-template-columns:90px repeat(${cols},1fr)">`;
+  html+='<div class="ep-h"></div>'+S.lehrlinge.map(l=>`<div class="ep-h">${l.vorname}<br><span class="dim" style="font-size:10px;">${l.lj}. LJ</span></div>`).join('');
+
+  for(let di=0;di<5;di++){
+    const d=new Date(mon.getTime()+di*86400000);
+    const dk=dateKey(d);
+    html+=`<div class="ep-day">${WDAYS_SHORT[di]}<br><span class="dim" style="font-size:10px;">${d.toLocaleDateString('de-CH',{day:'numeric',month:'numeric'})}</span></div>`;
+    S.lehrlinge.forEach(l=>{
+      const abtKey=getEpSlot(l.id,dk)||'frei';
+      const abt=ABTS.find(a=>a.k===abtKey)||ABTS[ABTS.length-1];
+      html+=`<div class="ep-cell ${abt.cls} droppable" data-lid="${l.id}" data-date="${dk}"
+        draggable="false"
+        ondragover="epDragOver(event)"
+        ondragleave="epDragLeave(event)"
+        ondrop="epDrop(event,'${l.id}','${dk}')"
+        onclick="epCellClick('${l.id}','${dk}',this)"
+        title="Klicken zum Ändern">${abt.icon} ${abt.l}</div>`;
     });
-    const d = await r.json();
-    const reply = d.content?.[0]?.text || d.error?.message || 'Keine Antwort';
-    kiHistory.push({ role:'assistant', content:reply });
-    document.getElementById(tid)?.remove();
-    addMsg('assistant', reply.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/`([^`]+)`/g,'<code>$1</code>'));
-  } catch(e) {
-    document.getElementById(tid)?.remove();
-    addMsg('assistant','❌ ' + e.message);
   }
+  html+='</div>';
+  document.getElementById('ep-main').innerHTML=html;
+  renderEinsatzAbtPalette();
 }
 
-function addMsg(role, html, id) {
-  const msgs = document.getElementById('ki-msgs');
-  const div = document.createElement('div');
-  div.className = 'ki-msg ' + role;
-  div.innerHTML = html;
-  if (id) div.id = id;
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
+function renderEinsatzDay(){
+  const d=getDay(epDayOff);
+  const dk=dateKey(d);
+  document.getElementById('ep-label').textContent=d.toLocaleDateString('de-CH',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  let html=`<div class="ep-day-grid">`;
+  S.lehrlinge.forEach(l=>{
+    const abtKey=getEpSlot(l.id,dk)||'frei';
+    const abt=ABTS.find(a=>a.k===abtKey)||ABTS[ABTS.length-1];
+    html+=`<div class="ep-day-card">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <div class="lav" style="background:${l.color||'#555'}">${l.initials}</div>
+        <div><div style="font-size:13px;font-weight:500;">${l.vorname} ${l.nachname}</div><div class="dim" style="font-size:10px;">${l.lj}. Lehrjahr</div></div>
+      </div>
+      <div class="ep-cell ${abt.cls}" style="width:100%;margin-bottom:8px;padding:10px;font-size:13px;">${abt.icon} ${abt.l}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;">
+        ${ABTS.map(a=>`<div class="ep-mini-btn ${a.cls}" onclick="setEpDay('${l.id}','${dk}','${a.k}')">${a.icon} ${a.l}</div>`).join('')}
+      </div>
+    </div>`;
+  });
+  html+='</div>';
+  document.getElementById('ep-main').innerHTML=html;
 }
 
-function kiKey(e) { if (e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); kiSend(); } }
-function kiResize(el) { el.style.height='auto'; el.style.height = Math.min(el.scrollHeight,120)+'px'; }
+function renderEinsatzAbtPalette(){
+  document.getElementById('ep-palette').innerHTML=`
+    <div class="dim" style="font-size:11px;margin-bottom:6px;">Klicke auf eine Zelle und wähle eine Abteilung:</div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px;">
+      ${ABTS.map(a=>`<div class="ep-mini-btn ${a.cls}" id="pal-${a.k}">${a.icon} ${a.l}</div>`).join('')}
+    </div>`;
+}
 
-// ════════════════════════════════════════════════════════════
-// DATENBANK / EINSTELLUNGEN
-// ════════════════════════════════════════════════════════════
-function renderDBStatus() {
-  // Lehrlinge management list
-  const dbL = document.getElementById('db-lehrlinge');
-  if (dbL) {
-    dbL.innerHTML = S.lehrlinge.length === 0
-      ? '<div class="dim" style="font-size:12px;text-align:center;padding:12px;">Noch keine Lernenden erfasst.</div>'
-      : S.lehrlinge.map(l => `
-        <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
-          <div class="lav" style="background:${l.color||'#444'}">${l.initials}</div>
-          <div style="flex:1;font-size:12px;">${l.vorname} ${l.nachname}<div class="dim" style="font-size:10px;">${l.lj}. Lehrjahr · Start ${l.start}</div></div>
-          <button class="btn btn-out btn-sm" onclick="deleteLehrling('${l.id}')">🗑</button>
-        </div>`).join('');
+let epSelected=null; // {lid, date, el}
+function epCellClick(lid,date,el){
+  // deselect old
+  document.querySelectorAll('.ep-cell.selected').forEach(c=>c.classList.remove('selected'));
+  if(epSelected&&epSelected.lid===lid&&epSelected.date===date){epSelected=null;return;}
+  el.classList.add('selected');
+  epSelected={lid,date,el};
+  // wire palette buttons
+  document.querySelectorAll('[id^="pal-"]').forEach(btn=>{
+    const abtKey=btn.id.replace('pal-','');
+    btn.onclick=()=>setEpWeek(lid,date,abtKey,el);
+  });
+}
+
+async function setEpWeek(lid,dateStr,abtKey,cellEl){
+  setEpSlot(lid,dateStr,abtKey);
+  await wj(`users/${uid()}/einsatzplan/data`,S.einsatzplan);
+  const abt=ABTS.find(a=>a.k===abtKey)||ABTS[ABTS.length-1];
+  if(cellEl){cellEl.className=`ep-cell ${abt.cls} droppable`;cellEl.innerHTML=`${abt.icon} ${abt.l}`;cellEl.classList.remove('selected');}
+  epSelected=null; toast('✓ Eingetragen');
+}
+async function setEpDay(lid,dateStr,abtKey){
+  setEpSlot(lid,dateStr,abtKey);
+  await wj(`users/${uid()}/einsatzplan/data`,S.einsatzplan);
+  renderEinsatzDay(); toast('✓ Eingetragen');
+}
+
+// Drag & Drop
+function epDragOver(e){e.preventDefault();e.currentTarget.classList.add('drag-over');}
+function epDragLeave(e){e.currentTarget.classList.remove('drag-over');}
+async function epDrop(e,lid,dateStr){
+  e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+  const abtKey=e.dataTransfer.getData('abt');
+  if(!abtKey)return;
+  await setEpWeek(lid,dateStr,abtKey,e.currentTarget);
+}
+
+// Palette drag start
+function palDragStart(e,abtKey){ e.dataTransfer.setData('abt',abtKey); }
+
+// ══════════════════════════════════════════════════════════════════
+// TERMINE
+// ══════════════════════════════════════════════════════════════════
+function renderTermine(){
+  makeLB('tm-lb');
+  if(!currentLid)return;
+  const now=new Date().toISOString().slice(0,10);
+  const mine=S.termine.filter(t=>t.lid===currentLid).sort((a,b)=>a.datum.localeCompare(b.datum));
+  const upcoming=mine.filter(t=>t.datum>=now);
+  const past=mine.filter(t=>t.datum<now);
+
+  let html='';
+  if(upcoming.length===0&&past.length===0){
+    html='<div style="text-align:center;padding:24px;color:var(--dim);font-size:13px;">📅 Noch keine Termine erfasst.<br>Klicke «+ Termin» um einen hinzuzufügen.</div>';
   }
-
-  const lzP = S.lehrlinge.reduce((acc, l) => {
-    const p = calcLZProgress(l.id);
-    return { done: acc.done+p.done, total: acc.total+p.total };
-  }, { done:0, total:0 });
-  document.getElementById('db-status').innerHTML = `
-    <div class="stat-row">Lehrlinge<span style="color:var(--gold)">${S.lehrlinge.length}</span></div>
-    <div class="stat-row">Lernberichte<span style="color:var(--gold)">${S.lernberichte.length}</span></div>
-    <div class="stat-row">Visierte Berichte<span style="color:var(--gold)">${S.lernberichte.filter(b=>b.status==='visiert').length}</span></div>
-    <div class="stat-row">LZ erledigt (gesamt)<span style="color:var(--gold)">${lzP.done}/${lzP.total}</span></div>
-    <div class="stat-row">Anhänge<span style="color:var(--gold)">${S.lernberichte.reduce((s,b)=>s+(b.attachments?.length||0),0)} Dateien</span></div>
-    <div class="stat-row">Datenbank<span class="tag tb">Firebase Firestore</span></div>`;
+  if(upcoming.length>0){
+    html+=`<div class="tm-group-lbl">Bevorstehend (${upcoming.length})</div>`;
+    upcoming.forEach(t=>{ html+=renderTerminCard(t,false); });
+  }
+  if(past.length>0){
+    html+=`<div class="tm-group-lbl" style="margin-top:14px;">Vergangen (${past.length})</div>`;
+    past.forEach(t=>{ html+=renderTerminCard(t,true); });
+  }
+  document.getElementById('tm-list').innerHTML=html;
 }
 
-async function exportBackup() {
-  const backup = {
-    version: 2,
-    exportDatum: new Date().toISOString(),
-    lehrlinge: S.lehrlinge,
-    lernberichte: S.lernberichte,
-    lzStatus: S.lzStatus,
-    bewertungen: S.bewertungen
+function renderTerminCard(t,past){
+  const typeIcon={lernbericht:'📝',lernziel:'📚',meeting:'🤝',pruefung:'🎯',sonstiges:'📌'}[t.typ]||'📌';
+  const typeLabel={lernbericht:'Lernbericht',lernziel:'Lernziel',meeting:'Gespräch',pruefung:'Prüfung',sonstiges:'Sonstiges'}[t.typ]||'Termin';
+  const daysLeft=Math.ceil((new Date(t.datum)-new Date())/86400000);
+  const urgency=!past&&daysLeft<=7?'tr':!past&&daysLeft<=30?'ty':'tg';
+  return `<div class="tm-card ${past?'past':''}">
+    <div class="tm-date">${typeIcon}<div>${fmtDate(t.datum)}</div><div class="dim" style="font-size:10px;">${past?'Vergangen':daysLeft===0?'Heute':daysLeft===1?'Morgen':'in '+daysLeft+' Tagen'}</div></div>
+    <div class="tm-body">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+        <span style="font-size:13px;font-weight:600;">${t.titel}</span>
+        <span class="tag ${urgency}">${typeLabel}</span>
+        ${t.erledigt?'<span class="tag tg">✓ Erledigt</span>':''}
+      </div>
+      ${t.beschreibung?`<div class="dim" style="font-size:12px;">${t.beschreibung}</div>`:''}
+    </div>
+    <div style="display:flex;gap:5px;flex-shrink:0;">
+      ${!t.erledigt?`<button class="btn btn-out btn-sm" onclick="erledigeTermin('${t.id}')">✓</button>`:''}
+      <button class="btn btn-out btn-sm" onclick="editTermin('${t.id}')">✏️</button>
+      <button class="btn btn-sm" style="background:transparent;border:1px solid var(--red);color:var(--red-l);" onclick="deleteTermin('${t.id}')">🗑</button>
+    </div>
+  </div>`;
+}
+
+function openNewTermin(){
+  document.getElementById('tm-edit-id').value='';
+  document.getElementById('tm-modal-title').textContent='Neuer Termin';
+  document.getElementById('tm-lid').value=currentLid||'';
+  document.getElementById('tm-titel').value='';
+  document.getElementById('tm-datum').value=new Date().toISOString().slice(0,10);
+  document.getElementById('tm-typ').value='lernbericht';
+  document.getElementById('tm-beschr').value='';
+  openModal('termin');
+}
+function editTermin(tid){
+  const t=S.termine.find(x=>x.id===tid); if(!t)return;
+  document.getElementById('tm-edit-id').value=tid;
+  document.getElementById('tm-modal-title').textContent='Termin bearbeiten';
+  document.getElementById('tm-lid').value=t.lid;
+  document.getElementById('tm-titel').value=t.titel;
+  document.getElementById('tm-datum').value=t.datum;
+  document.getElementById('tm-typ').value=t.typ||'sonstiges';
+  document.getElementById('tm-beschr').value=t.beschreibung||'';
+  openModal('termin');
+}
+async function saveTermin(){
+  const eid=document.getElementById('tm-edit-id').value;
+  const data={
+    lid:document.getElementById('tm-lid').value,
+    titel:document.getElementById('tm-titel').value.trim(),
+    datum:document.getElementById('tm-datum').value,
+    typ:document.getElementById('tm-typ').value,
+    beschreibung:document.getElementById('tm-beschr').value,
+    erledigt:false
   };
-  const blob = new Blob([JSON.stringify(backup, null, 2)], { type:'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `kofa_backup_${new Date().toISOString().slice(0,10)}.json`;
+  if(!data.titel||!data.datum){toast('Titel und Datum eingeben','red');return;}
+  showLoading(true);
+  if(eid){
+    await upd(`users/${uid()}/termine/${eid}`,data);
+    const idx=S.termine.findIndex(x=>x.id===eid);
+    if(idx>-1) S.termine[idx]={...S.termine[idx],...data};
+    toast('✓ Termin aktualisiert');
+  } else {
+    const id=await add(`users/${uid()}/termine`,data);
+    S.termine.push({id,...data});
+    toast('✓ Termin gespeichert');
+  }
+  showLoading(false);
+  closeModal('termin');
+  renderTermine();
+}
+async function erledigeTermin(tid){
+  await upd(`users/${uid()}/termine/${tid}`,{erledigt:true});
+  const t=S.termine.find(x=>x.id===tid); if(t) t.erledigt=true;
+  toast('✓ Als erledigt markiert'); renderTermine();
+}
+async function deleteTermin(tid){
+  if(!confirm('Termin löschen?'))return;
+  await del(`users/${uid()}/termine/${tid}`);
+  S.termine=S.termine.filter(x=>x.id!==tid);
+  toast('Termin gelöscht'); renderTermine();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// KI ASSISTENT
+// ══════════════════════════════════════════════════════════════════
+const KI_SYS=`Du bist ein erfahrener Berufsbildungsexperte für Hotel-Kommunikationsfachfrau/-mann EFZ (Berufsnummer 79200). Du kennst den Bildungsplan von Hotel & Gastro formation (2017) mit allen 4 HKBs, 21 Handlungskompetenzen (HK 1.1–4.4) und allen Leistungszielen (K1–K6 nach Bloom). Das Qualifikationsverfahren besteht aus CPEX (3 Situationen) und PEX (Fachgespräch) sowie Berufskenntnisse. Antworte praxisnah auf Deutsch für Berufsbildner/innen in Hotelbetrieben.`;
+
+async function saveApiKey(){
+  const k=document.getElementById('ki-key').value.trim();
+  S.einstellungen.apiKey=k;
+  await wj(`users/${uid()}/einstellungen/data`,S.einstellungen);
+  document.getElementById('ki-status').innerHTML=k.startsWith('sk-ant-')?'<span style="color:var(--green-l)">✓</span>':'<span style="color:var(--yellow)">⚠</span>';
+}
+function qAsk(t){document.getElementById('ki-in').value=t;kiSend();}
+function kiKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();kiSend();}}
+function kiResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
+function addMsg(role,html,id){
+  const msgs=document.getElementById('ki-msgs');
+  const div=document.createElement('div');
+  div.className='ki-msg '+role; div.innerHTML=html;
+  if(id) div.id=id;
+  msgs.appendChild(div); msgs.scrollTop=msgs.scrollHeight;
+}
+async function kiSend(){
+  const el=document.getElementById('ki-in');
+  const text=el.value.trim(); if(!text)return;
+  const key=S.einstellungen.apiKey||document.getElementById('ki-key').value.trim();
+  if(!key.startsWith('sk-ant-')){addMsg('assistant','⚠️ Bitte erst API-Key eingeben.');return;}
+  addMsg('user',text); el.value=''; el.style.height='auto';
+  kiHistory.push({role:'user',content:text});
+  const tid='ki'+Date.now(); addMsg('assistant','<span style="opacity:.5">●●●</span>',tid);
+  try{
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,system:KI_SYS,messages:kiHistory})});
+    const d=await r.json();
+    const reply=d.content?.[0]?.text||d.error?.message||'Fehler';
+    kiHistory.push({role:'assistant',content:reply});
+    document.getElementById(tid)?.remove();
+    addMsg('assistant',reply.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>'));
+  }catch(e){document.getElementById(tid)?.remove();addMsg('assistant','❌ '+e.message);}
+}
+
+// ══════════════════════════════════════════════════════════════════
+// LEHRLINGE
+// ══════════════════════════════════════════════════════════════════
+async function addLehrling(){
+  const vn=document.getElementById('nl-vn').value.trim();
+  const nn=document.getElementById('nl-nn').value.trim();
+  if(!vn||!nn){toast('Vor- und Nachname eingeben','red');return;}
+  const colors=['#C9A84C','#3A6FA0','#5B8C5A','#9B5E8C','#C8675A','#4A8080'];
+  const color=colors[S.lehrlinge.length%colors.length];
+  const data={vorname:vn,nachname:nn,lj:parseInt(document.getElementById('nl-lj').value),
+    start:document.getElementById('nl-start').value,initials:(vn[0]+(nn[0]||'')).toUpperCase(),color};
+  showLoading(true);
+  const id=await add(`users/${uid()}/lehrlinge`,data);
+  S.lehrlinge.push({id,...data}); currentLid=id;
+  showLoading(false);
+  closeModal('lehrling'); toast('✓ Lehrling hinzugefügt');
+  renderAll(); fillDropdowns();
+}
+async function deleteLehrling(lid){
+  if(!confirm('Lehrling und alle Daten löschen?'))return;
+  showLoading(true);
+  await del(`users/${uid()}/lehrlinge/${lid}`);
+  S.lehrlinge=S.lehrlinge.filter(x=>x.id!==lid);
+  if(currentLid===lid) currentLid=S.lehrlinge[0]?.id||null;
+  showLoading(false); renderAll(); toast('Lehrling gelöscht');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// DATENBANK
+// ══════════════════════════════════════════════════════════════════
+function renderDB(){
+  const lzP=S.lehrlinge.reduce((acc,l)=>{const p=calcLZProg(l.id);return{done:acc.done+p.done,total:acc.total+p.total};},{done:0,total:0});
+  document.getElementById('db-status').innerHTML=`
+    <div class="sr">Lehrlinge<span style="color:var(--gold)">${S.lehrlinge.length}</span></div>
+    <div class="sr">Lernberichte<span style="color:var(--gold)">${S.lernberichte.length}</span></div>
+    <div class="sr">Visiert<span style="color:var(--gold)">${S.lernberichte.filter(b=>b.status==='visiert').length}</span></div>
+    <div class="sr">LZ erledigt<span style="color:var(--gold)">${lzP.done}/${lzP.total}</span></div>
+    <div class="sr">Termine<span style="color:var(--gold)">${S.termine.length}</span></div>
+    <div class="sr">Anhänge<span style="color:var(--gold)">${S.lernberichte.reduce((s,b)=>s+(b.attachments?.length||0),0)} Dateien</span></div>`;
+  document.getElementById('db-lehrlinge').innerHTML=S.lehrlinge.length===0
+    ?'<div class="dim" style="font-size:12px;text-align:center;padding:12px;">Noch keine Lernenden.</div>'
+    :S.lehrlinge.map(l=>`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
+        <div class="lav" style="background:${l.color||'#555'}">${l.initials}</div>
+        <div style="flex:1;font-size:12px;font-weight:500;">${l.vorname} ${l.nachname}<div class="dim" style="font-size:10px;">${l.lj}. Lehrjahr · ${l.start}</div></div>
+        <button class="btn btn-out btn-sm" onclick="deleteLehrling('${l.id}')">🗑</button>
+      </div>`).join('');
+  // QV Datum
+  document.getElementById('db-qv-datum').value=S.einstellungen.qvDatum||'2026-07-01';
+}
+
+async function saveQVDatum(){
+  S.einstellungen.qvDatum=document.getElementById('db-qv-datum').value;
+  await wj(`users/${uid()}/einstellungen/data`,S.einstellungen);
+  toast('✓ QV-Datum gespeichert');
+}
+
+async function exportBackup(){
+  const bk={version:4,exportDatum:new Date().toISOString(),lehrlinge:S.lehrlinge,lernberichte:S.lernberichte,lzStatus:S.lzStatus,bewertungen:S.bewertungen,einsatzplan:S.einsatzplan,termine:S.termine};
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(bk,null,2)],{type:'application/json'}));
+  a.download=`kofa_backup_${new Date().toISOString().slice(0,10)}.json`;
   a.click();
 }
-
-async function importBackup(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  try {
-    const data = JSON.parse(await file.text());
-    if (!confirm(`Import: ${data.lehrlinge?.length||0} Lehrlinge, ${data.lernberichte?.length||0} Berichte. Weiter?`)) return;
+async function importBackup(e){
+  const file=e.target.files[0]; if(!file)return;
+  try{
+    const d=JSON.parse(await file.text());
+    if(!confirm(`Import: ${d.lehrlinge?.length||0} Lehrlinge, ${d.lernberichte?.length||0} Berichte, ${d.termine?.length||0} Termine. Weiter?`))return;
     showLoading(true);
-    if (data.lzStatus) { S.lzStatus = data.lzStatus; await saveLzStatus(); }
-    if (data.bewertungen) { S.bewertungen = data.bewertungen; await saveBewertungen(); }
-    if (data.lehrlinge) for (const l of data.lehrlinge) await fbSet(`users/${uid()}/lehrlinge/${l.id}`, l);
-    if (data.lernberichte) for (const b of data.lernberichte) await fbSet(`users/${uid()}/lernberichte/${b.id}`, b);
-    await loadAll();
-    showLoading(false);
-    renderAll();
-    toast('✓ Import erfolgreich');
-  } catch(err) {
-    showLoading(false);
-    toast('Fehler beim Import: ' + err.message, 'red');
-  }
+    if(d.lzStatus) await wj(`users/${uid()}/lzStatus/data`,d.lzStatus);
+    if(d.bewertungen) await wj(`users/${uid()}/bewertungen/data`,d.bewertungen);
+    if(d.einsatzplan) await wj(`users/${uid()}/einsatzplan/data`,d.einsatzplan);
+    if(d.lehrlinge) for(const l of d.lehrlinge) await wj(`users/${uid()}/lehrlinge/${l.id}`,l);
+    if(d.lernberichte) for(const b of d.lernberichte) await wj(`users/${uid()}/lernberichte/${b.id}`,b);
+    if(d.termine) for(const t of d.termine) await wj(`users/${uid()}/termine/${t.id}`,t);
+    await loadAll(); showLoading(false); renderAll(); toast('✓ Import erfolgreich');
+  }catch(err){showLoading(false);toast('Import-Fehler: '+err.message,'red');}
 }
 
-// ════════════════════════════════════════════════════════════
-// LEHRLINGE VERWALTEN
-// ════════════════════════════════════════════════════════════
-async function addLehrling() {
-  const vn = document.getElementById('nl-vn').value.trim();
-  const nn = document.getElementById('nl-nn').value.trim();
-  if (!vn || !nn) { toast('Vor- und Nachname eingeben', 'red'); return; }
-  const colors = ['#C9A84C','#3A6FA0','#5B8C5A','#9B5E8C','#C8675A'];
-  const color = colors[S.lehrlinge.length % colors.length];
-  const data = {
-    vorname: vn, nachname: nn,
-    lj: parseInt(document.getElementById('nl-lj').value),
-    start: document.getElementById('nl-start').value,
-    initials: (vn[0]+(nn[0]||'')).toUpperCase(),
-    color
-  };
-  showLoading(true);
-  const id = await fbAdd(`users/${uid()}/lehrlinge`, data);
-  S.lehrlinge.push({ id, ...data });
-  currentLid = id;
-  showLoading(false);
-  closeModal('lehrling');
-  toast('✓ Lehrling hinzugefügt');
-  renderAll();
-  fillDropdowns();
-}
-
-async function deleteLehrling(lid) {
-  if (!confirm('Lehrling und alle Daten löschen?')) return;
-  showLoading(true);
-  await fbDel(`users/${uid()}/lehrlinge/${lid}`);
-  S.lehrlinge = S.lehrlinge.filter(x=>x.id!==lid);
-  if (currentLid===lid) currentLid = S.lehrlinge[0]?.id || null;
-  showLoading(false);
-  renderAll();
-  toast('Lehrling gelöscht');
-}
-
-// ════════════════════════════════════════════════════════════
-// DROPDOWNS FÜLLEN
-// ════════════════════════════════════════════════════════════
-function fillDropdowns() {
-  const lSel = document.getElementById('nb-lid');
-  if (lSel) lSel.innerHTML = S.lehrlinge.map(l=>`<option value="${l.id}">${l.vorname} ${l.nachname}</option>`).join('');
-  if (currentLid && lSel) lSel.value = currentLid;
-  const hkSel = document.getElementById('nb-hk');
-  if (hkSel) hkSel.innerHTML = '<option value="">— Keine Angabe —</option>' +
-    ALL_HK.map(hk=>`<option value="${hk.id}">HK ${hk.id}: ${hk.titel.substring(0,50)}…</option>`).join('');
-}
-
-// ════════════════════════════════════════════════════════════
-// AUTH UI
-// ════════════════════════════════════════════════════════════
-async function login() {
-  const email = document.getElementById('auth-email').value.trim();
-  const pw = document.getElementById('auth-pw').value;
-  const err = document.getElementById('auth-err');
-  err.textContent = '';
-  try {
-    await signInWithEmailAndPassword(auth, email, pw);
-  } catch(e) {
-    err.textContent = e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential'
-      ? 'E-Mail oder Passwort falsch.'
-      : e.message;
-  }
-}
-
-async function register() {
-  const email = document.getElementById('auth-email').value.trim();
-  const pw = document.getElementById('auth-pw').value;
-  const err = document.getElementById('auth-err');
-  err.textContent = '';
-  if (pw.length < 6) { err.textContent = 'Passwort mind. 6 Zeichen.'; return; }
-  try {
-    await createUserWithEmailAndPassword(auth, email, pw);
-  } catch(e) {
-    err.textContent = e.code === 'auth/email-already-in-use'
-      ? 'E-Mail bereits registriert. Bitte einloggen.'
-      : e.message;
-  }
-}
-
-async function logout() {
-  await signOut(auth);
-  kiHistory = [];
-  S = { lehrlinge:[], lernberichte:[], lzStatus:{}, bewertungen:{}, einstellungen:{} };
-}
-
-// ════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
 // RENDER ALL
-// ════════════════════════════════════════════════════════════
-function renderAll() {
+// ══════════════════════════════════════════════════════════════════
+function renderAll(){
   fillDropdowns();
   renderOverview();
   renderBildungsplan();
@@ -1175,319 +1316,322 @@ function renderAll() {
   renderBildungsbericht();
   renderQV();
   renderEinsatz();
-  // KI API Key anzeigen
-  const keyEl = document.getElementById('ki-key');
-  if (keyEl && S.einstellungen.apiKey) keyEl.value = S.einstellungen.apiKey;
+  renderTermine();
+  renderDB();
+  if(S.einstellungen.apiKey){
+    document.getElementById('ki-key').value=S.einstellungen.apiKey;
+    document.getElementById('ki-status').innerHTML='<span style="color:var(--green-l)">✓</span>';
+  }
+  // Lehrling-Dropdowns für Termine
+  const tmLid=document.getElementById('tm-lid');
+  if(tmLid) tmLid.innerHTML=S.lehrlinge.map(l=>`<option value="${l.id}">${l.vorname} ${l.nachname}</option>`).join('');
 }
 
-// Datum-Badge
-document.getElementById('today-badge').textContent =
-  new Date().toLocaleDateString('de-CH',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+// ══════════════════════════════════════════════════════════════════
+// WINDOW EXPORTS
+// ══════════════════════════════════════════════════════════════════
+document.getElementById('today-badge').textContent=new Date().toLocaleDateString('de-CH',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+document.getElementById('auth-pw').addEventListener('keydown',e=>{if(e.key==='Enter')login();});
+document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
 
-// Enter-Taste im Auth-Formular
-document.getElementById('auth-pw').addEventListener('keydown', e => { if(e.key==='Enter') login(); });
-
-// Modal: Klick ausserhalb schliessen
-document.querySelectorAll('.modal-overlay').forEach(o =>
-  o.addEventListener('click', e => { if(e.target===o) o.classList.remove('open'); })
-);
-
-// ════════════════════════════════════════════════════════════
-// WINDOW EXPORTS — nötig weil type="module" onclick-Handler
-// keinen Zugriff auf Funktionen im Modul-Scope erlaubt
-// ════════════════════════════════════════════════════════════
-Object.assign(window, {
-  login, register, logout,
-  showTab, selectL,
-  openModal, closeModal,
-  toggleLZ, toggleLZList,
-  openNewBericht, showBerichtDetail,
-  saveBericht, visiereBericht, loescheBericht,
-  uploadAtt, dropFiles, deleteAttachment,
-  setStar, generateBB,
-  changeWeek,
-  saveApiKey, qAsk, kiSend, kiKey, kiResize,
-  addLehrling, deleteLehrling,
-  exportBackup, importBackup,
-  renderDBStatus,
-  saveBewertungen: async () => { await saveBewertungen(); toast('✓ Gespeichert'); }
+Object.assign(window,{
+  login,register,logout,
+  showTab,selectL,
+  openModal,closeModal,
+  setBpSem,toggleLL,toggleLZ,
+  openNewBericht,editBericht,saveBericht,showBericht,visiereBericht,deleteBericht,
+  uploadAtt,dropAtt,delAtt,
+  setRole,setStarFinal,setStarAbt,saveFinalBew,saveAbtBew,generateBB,
+  toggleSzAufgabe,
+  changeWeek,changeDay,setEpView,epCellClick,epDragOver,epDragLeave,epDrop,palDragStart,setEpDay,
+  openNewTermin,editTermin,saveTermin,erledigeTermin,deleteTermin,
+  qAsk,kiSend,kiKey,kiResize,saveApiKey,
+  addLehrling,deleteLehrling,
+  exportBackup,importBackup,saveQVDatum,renderDB
 });
 </script>
-
 <style>
-/* ════════════ VARIABLES ════════════ */
 :root{
-  --bg:#131210; --bg2:#1C1916; --bg3:#252118; --card:#1E1B17;
-  --border:#2E2A24; --border2:#3A3530;
-  --cream:#F2E8D0; --dim:#9A8E78;
-  --gold:#C9A84C; --gold-l:#E8D080;
-  --green:#5B8C5A; --green-l:#7EC07E;
-  --red:#9B3A30; --red-l:#D06050;
-  --blue:#2E5A8C; --blue-l:#5A90C8;
+  --bg:#131210;--bg2:#1C1916;--card:#1E1B17;
+  --border:#2E2A24;--border2:#3A3530;
+  --cream:#F2E8D0;--dim:#9A8E78;
+  --gold:#C9A84C;--gold-l:#E8D080;
+  --green:#5B8C5A;--green-l:#7EC07E;
+  --red:#9B3A30;--red-l:#D06050;
+  --blue:#2E5A8C;--blue-l:#5A90C8;
   --yellow:#B89020;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--cream);min-height:100vh;}
-body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 40% at 20% 0%,rgba(201,168,76,.05),transparent),radial-gradient(ellipse 60% 60% at 90% 100%,rgba(58,111,160,.04),transparent);pointer-events:none;z-index:0;}
-code{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:11px;font-family:monospace;}
-a{color:var(--blue-l);text-decoration:none;}
-a:hover{text-decoration:underline;}
-/* ════════════ LOADING ════════════ */
-#loading{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;display:none;}
-.spinner{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 40% at 20% 0%,rgba(201,168,76,.05),transparent);pointer-events:none;z-index:0;}
+a{color:var(--blue-l);}
+code{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:11px;font-family:monospace;}
+
+/* LOADING */
+#loading{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:999;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;}
+.spin{width:34px;height:34px;border:3px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
-/* ════════════ AUTH ════════════ */
+
+/* AUTH */
 #auth-screen{position:fixed;inset:0;background:var(--bg);z-index:500;display:flex;align-items:center;justify-content:center;}
-.auth-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px;max-width:380px;width:93%;}
-.auth-logo{font-family:'DM Serif Display',serif;font-size:22px;margin-bottom:4px;text-align:center;}
-.auth-sub{font-size:11px;color:var(--dim);text-align:center;margin-bottom:28px;}
-.auth-err{font-size:12px;color:var(--red-l);margin-top:10px;min-height:18px;}
-.auth-footer{text-align:center;font-size:11px;color:var(--dim);margin-top:20px;}
-/* ════════════ HEADER ════════════ */
-header{position:sticky;top:0;z-index:100;background:rgba(19,18,16,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 20px;height:56px;display:flex;align-items:center;gap:12px;}
-.logo{display:flex;align-items:center;gap:10px;}
-.logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--gold),var(--gold-l));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;}
-.logo-name{font-family:'DM Serif Display',serif;font-size:16px;}
-.logo-sub{font-size:10px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase;}
+.auth-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:38px;max-width:360px;width:93%;}
+.auth-err{font-size:12px;color:var(--red-l);margin-top:8px;min-height:16px;}
+
+/* HEADER */
+header{position:sticky;top:0;z-index:100;background:rgba(19,18,16,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 20px;height:54px;display:flex;align-items:center;gap:12px;}
+.logo{display:flex;align-items:center;gap:9px;}
+.logo-ico{width:30px;height:30px;background:linear-gradient(135deg,var(--gold),var(--gold-l));border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;}
+.logo-n{font-family:'DM Serif Display',serif;font-size:15px;}
+.logo-s{font-size:10px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase;}
 .hflex{flex:1;}
-.user-info{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:8px;}
-/* ════════════ NAV ════════════ */
-nav{position:sticky;top:56px;z-index:99;background:var(--bg2);border-bottom:1px solid var(--border);padding:0 20px;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;}
+
+/* NAV */
+nav{position:sticky;top:54px;z-index:99;background:var(--bg2);border-bottom:1px solid var(--border);padding:0 20px;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;}
 nav::-webkit-scrollbar{display:none;}
-.tab{padding:11px 13px;font-size:12px;font-weight:500;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;}
+.tab{padding:10px 12px;font-size:12px;font-weight:500;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;}
 .tab:hover{color:var(--cream);}
 .tab.active{color:var(--gold);border-bottom-color:var(--gold);}
-/* ════════════ MAIN ════════════ */
+
+/* MAIN */
 main{max-width:1280px;margin:0 auto;padding:20px;position:relative;z-index:1;}
 .section{display:none;}
 .section.active{display:block;animation:fadeIn .25s ease;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-.page-title{font-family:'DM Serif Display',serif;font-size:24px;margin-bottom:3px;}
-.page-sub{font-size:12px;color:var(--dim);margin-bottom:20px;}
-/* ════════════ GRID ════════════ */
+.pg-title{font-family:'DM Serif Display',serif;font-size:23px;margin-bottom:3px;}
+.pg-sub{font-size:12px;color:var(--dim);margin-bottom:18px;}
+
+/* GRIDS */
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
 @media(max-width:900px){.g4{grid-template-columns:1fr 1fr;}.g3{grid-template-columns:1fr 1fr;}}
 @media(max-width:600px){.g2,.g3,.g4{grid-template-columns:1fr;}}
-/* ════════════ CARDS ════════════ */
+
+/* CARDS */
 .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;}
 .card-t{font-family:'DM Serif Display',serif;font-size:15px;margin-bottom:2px;}
 .card-s{font-size:11px;color:var(--dim);margin-bottom:14px;}
-/* ════════════ LEHRLING BAR ════════════ */
-.lb{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
-.lp{display:flex;align-items:center;gap:9px;padding:8px 14px;border-radius:40px;border:1px solid var(--border);background:var(--card);cursor:pointer;transition:all .2s;}
+.divider{height:1px;background:var(--border);margin:14px 0;}
+
+/* LEHRLING BAR */
+.lb{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;}
+.lp{display:flex;align-items:center;gap:9px;padding:7px 13px;border-radius:40px;border:1px solid var(--border);background:var(--card);cursor:pointer;transition:all .2s;}
 .lp:hover{border-color:var(--gold);}
 .lp.active{background:var(--gold);border-color:var(--gold);color:var(--bg);}
-.lp.active .dim{color:rgba(0,0,0,.6);}
-.lav{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--bg);flex-shrink:0;}
-/* ════════════ STAT CARDS ════════════ */
-.stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;position:relative;overflow:hidden;}
-.stat-card::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent,#C9A84C);}
-.sc-num{font-family:'DM Serif Display',serif;font-size:36px;line-height:1;margin-bottom:4px;}
-.sc-lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;}
-.sc-sub{font-size:11px;color:var(--dim);margin-top:6px;}
-/* ════════════ PROGRESS ════════════ */
-.pw{margin-bottom:10px;}
-.prow{display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;}
+.lp.active .dim{color:rgba(0,0,0,.55);}
+.lav{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--bg);flex-shrink:0;}
+
+/* STAT CARDS */
+.sc{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;position:relative;overflow:hidden;}
+.sc::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--a,#C9A84C);}
+.sc-n{font-family:'DM Serif Display',serif;font-size:34px;line-height:1;margin-bottom:4px;}
+.sc-l{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;}
+.sc-s{font-size:11px;margin-top:5px;}
+
+/* PROGRESS */
+.pw{margin-bottom:9px;}
+.prow{display:flex;justify-content:space-between;margin-bottom:4px;font-size:12px;}
 .pbar{height:5px;background:var(--border2);border-radius:3px;overflow:hidden;}
 .pfill{height:100%;border-radius:3px;transition:width .6s ease;}
-/* ════════════ TAGS ════════════ */
-.tag{display:inline-block;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:500;}
+
+/* TAGS */
+.tag{display:inline-block;font-size:10px;padding:2px 7px;border-radius:20px;font-weight:500;}
 .tg{background:rgba(91,140,90,.2);color:var(--green-l);}
-.ty{background:rgba(185,146,32,.2);color:#E0B840;}
+.ty{background:rgba(184,144,32,.2);color:#E0B840;}
 .tr{background:rgba(155,58,48,.2);color:var(--red-l);}
 .tb{background:rgba(46,90,140,.2);color:var(--blue-l);}
-/* ════════════ TASK ROWS ════════════ */
-.task-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);margin-bottom:7px;font-size:12px;background:var(--bg2);}
-/* ════════════ BUTTONS ════════════ */
-.btn{padding:8px 16px;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:all .2s;display:inline-flex;align-items:center;gap:5px;}
+
+/* BUTTONS */
+.btn{padding:7px 15px;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:all .2s;display:inline-flex;align-items:center;gap:4px;}
 .btn-gold{background:var(--gold);color:var(--bg);}
 .btn-gold:hover{background:var(--gold-l);}
 .btn-out{background:transparent;border:1px solid var(--border);color:var(--dim);}
 .btn-out:hover{border-color:var(--gold);color:var(--cream);}
-.btn-red{background:transparent;border:1px solid var(--red);color:var(--red-l);}
-.btn-sm{padding:4px 10px;font-size:11px;}
-/* ════════════ FORMS ════════════ */
+.btn-sm{padding:4px 9px;font-size:11px;}
+
+/* FORMS */
 label.fl{display:block;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-top:12px;margin-bottom:4px;}
-.fi{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-family:'DM Sans',sans-serif;font-size:12px;padding:9px 12px;outline:none;transition:border-color .2s;}
+.fi{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-family:'DM Sans',sans-serif;font-size:12px;padding:8px 12px;outline:none;transition:border-color .2s;}
 .fi:focus{border-color:var(--gold);}
-textarea.fi{min-height:64px;resize:vertical;}
-/* ════════════ DIVIDER ════════════ */
-.divider{height:1px;background:var(--border);margin:16px 0;}
-/* ════════════ MODAL ════════════ */
+textarea.fi{min-height:60px;resize:vertical;}
+
+/* TASK ROW */
+.task-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);margin-bottom:7px;font-size:12px;background:var(--bg2);}
+
+/* MODAL */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
 .modal-overlay.open{display:flex;}
-.modal{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:26px;max-width:500px;width:93%;max-height:90vh;overflow-y:auto;}
-.modal-t{font-family:'DM Serif Display',serif;font-size:20px;margin-bottom:16px;}
-.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;}
-/* ════════════ BILDUNGSPLAN ════════════ */
-.hkb-block{margin-bottom:8px;}
-.hkb-hd{display:flex;align-items:center;gap:10px;padding:11px 14px;background:rgba(201,168,76,.04);border:1px solid rgba(201,168,76,.15);border-radius:10px;cursor:pointer;transition:all .2s;user-select:none;}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:24px;max-width:500px;width:93%;max-height:90vh;overflow-y:auto;}
+.modal-t{font-family:'DM Serif Display',serif;font-size:19px;margin-bottom:14px;}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;}
+
+/* BILDUNGSPLAN */
+.sem-btn{padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:var(--bg2);color:var(--dim);font-size:11px;cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif;}
+.sem-btn:hover{border-color:var(--gold);color:var(--cream);}
+.sem-btn.active{background:var(--gold);border-color:var(--gold);color:var(--bg);}
+.hkb-block{margin-bottom:7px;}
+.hkb-hd{display:flex;align-items:center;gap:9px;padding:10px 14px;background:rgba(201,168,76,.04);border:1px solid rgba(201,168,76,.14);border-radius:10px;cursor:pointer;user-select:none;transition:background .15s;}
 .hkb-hd:hover{background:rgba(201,168,76,.08);}
-.hkb-hd.open + .hkb-body{display:block;}
-.hkb-hd .chev{font-size:10px;color:var(--dim);transition:transform .2s;margin-left:auto;}
+.hkb-hd.open+.hkb-body{display:block;}
+.chev{font-size:10px;color:var(--dim);transition:transform .2s;margin-left:auto;}
 .hkb-hd.open .chev{transform:rotate(90deg);}
-.hkb-code{font-family:'DM Serif Display',serif;font-size:18px;}
+.hkb-code{font-family:'DM Serif Display',serif;font-size:17px;}
 .hkb-t{font-size:12px;font-weight:500;flex:1;}
-.hkb-pct{font-size:11px;color:var(--dim);}
-.hkb-body{display:none;margin-left:14px;margin-top:4px;margin-bottom:6px;}
-.hk-row{display:flex;align-items:flex-start;gap:9px;padding:9px;border-radius:8px;border:1px solid transparent;margin-bottom:3px;transition:background .15s;}
+.hkb-body{display:none;margin-left:12px;margin-top:3px;margin-bottom:6px;}
+.hk-row{display:flex;align-items:flex-start;gap:8px;padding:8px;border-radius:8px;margin-bottom:3px;transition:background .1s;}
 .hk-row:hover{background:rgba(255,255,255,.02);}
-.hk-status{width:20px;height:20px;border-radius:5px;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;margin-top:2px;transition:all .2s;}
-.hk-status.done{background:var(--green);border-color:var(--green);color:white;}
-.hk-status.partial{background:rgba(201,168,76,.2);border-color:var(--gold);color:var(--gold);}
+.hk-st{width:19px;height:19px;border-radius:4px;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;margin-top:2px;transition:all .15s;}
+.hk-st.done{background:var(--green);border-color:var(--green);color:white;}
+.hk-st.part{background:rgba(201,168,76,.2);border-color:var(--gold);color:var(--gold);}
 .hk-body{flex:1;}
-.hk-meta{display:flex;gap:6px;align-items:center;margin-bottom:2px;}
+.hk-meta{display:flex;gap:5px;align-items:center;margin-bottom:2px;flex-wrap:wrap;}
 .hk-code{font-size:10px;color:var(--gold);font-weight:700;}
-.hk-tax{font-size:10px;color:var(--dim);background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;}
+.hk-tax{font-size:10px;color:var(--dim);background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:1px 4px;}
 .hk-t{font-size:12px;cursor:pointer;}
 .hk-t:hover{color:var(--gold);}
-.hk-prog{font-size:10px;color:var(--dim);margin-top:3px;}
-.lz-list{display:none;margin-top:8px;border-left:2px solid var(--border);padding-left:12px;}
+.hk-prog{font-size:10px;color:var(--dim);margin-top:2px;}
+.lz-list{display:none;margin-top:7px;border-left:2px solid var(--border);padding-left:11px;}
 .lz-list.open{display:block;}
-.lz-row{display:flex;align-items:flex-start;gap:8px;padding:5px 6px;border-radius:6px;cursor:pointer;transition:background .1s;margin-bottom:2px;}
+.lz-row{display:flex;align-items:flex-start;gap:7px;padding:4px 5px;border-radius:5px;cursor:pointer;transition:background .1s;margin-bottom:2px;}
 .lz-row:hover{background:rgba(255,255,255,.03);}
-.lz-cb{width:15px;height:15px;border-radius:3px;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;margin-top:1px;transition:all .15s;color:white;}
+.lz-cb{width:14px;height:14px;border-radius:3px;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;margin-top:1px;transition:all .15s;color:white;}
 .lz-cb.on{background:var(--green);border-color:var(--green);}
-.lz-t{font-size:11px;color:var(--dim);line-height:1.45;}
-.lz-t:hover{color:var(--cream);}
-.lz-t.done-txt{text-decoration:line-through;opacity:.55;}
-/* ════════════ LERNBERICHTE ════════════ */
-.b-semester-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;}
-@media(max-width:800px){.b-semester-grid{grid-template-columns:repeat(3,1fr);}}
-@media(max-width:500px){.b-semester-grid{grid-template-columns:1fr 1fr;}}
+.lz-t{font-size:11px;color:var(--dim);line-height:1.4;}
+.lz-t.done-t{text-decoration:line-through;opacity:.5;}
+
+/* LERNBERICHTE */
+.b-sem-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;}
+@media(max-width:800px){.b-sem-grid{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:480px){.b-sem-grid{grid-template-columns:1fr 1fr;}}
 .b-sem{display:flex;flex-direction:column;gap:5px;}
-.b-sem-label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;padding:4px 0;font-weight:500;}
-.b-card{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:10px;cursor:pointer;transition:all .2s;min-height:72px;}
+.b-sem-lbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;padding:3px 0;font-weight:500;}
+.b-card{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:10px;cursor:pointer;transition:all .2s;min-height:68px;}
 .b-card:hover{border-color:var(--gold);}
 .b-card.visiert{background:rgba(91,140,90,.15);border-color:rgba(122,192,122,.4);}
-.b-card.eingereicht{background:rgba(185,146,32,.1);border-color:rgba(185,146,32,.3);}
-.b-card.empty{display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:12px;border-style:dashed;}
-.b-card-icon{font-size:16px;margin-bottom:4px;}
-.b-card-t{font-size:11px;line-height:1.3;}
-.b-card-hk{font-size:10px;color:var(--gold);margin-top:3px;}
-/* Bericht Detail */
-#b-detail-panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;margin-top:14px;display:none;}
-.bd-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;}
-.bd-title{font-family:'DM Serif Display',serif;font-size:17px;margin-bottom:3px;}
-.bd-meta{font-size:11px;color:var(--dim);}
-.bd-section{margin-bottom:12px;}
-.bd-sec-label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;}
-.bd-sec-body{font-size:12px;padding:10px;border-radius:8px;line-height:1.5;}
-.bd-sec-body.ok{background:rgba(91,140,90,.12);border:1px solid rgba(91,140,90,.25);}
-.bd-sec-body.warn{background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.2);}
-/* Attachments */
-.att-list{display:flex;flex-direction:column;gap:5px;margin:8px 0;}
-.att-item{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg);border:1px solid var(--border);border-radius:7px;font-size:12px;}
-.att-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.att-zone{border:2px dashed var(--border);border-radius:9px;padding:16px;text-align:center;cursor:pointer;transition:all .2s;margin-top:10px;font-size:12px;color:var(--dim);}
+.b-card.eingereicht{background:rgba(184,144,32,.1);border-color:rgba(184,144,32,.3);}
+.b-card.add{display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:12px;border-style:dashed;min-height:40px;}
+.bd-sec{margin-bottom:11px;}
+.bd-sec-lbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;}
+.bd-sec-body{font-size:12px;padding:9px;border-radius:7px;line-height:1.5;}
+.bd-sec-body.ok{background:rgba(91,140,90,.12);border:1px solid rgba(91,140,90,.2);}
+.bd-sec-body.warn{background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.18);}
+.att-list{display:flex;flex-direction:column;gap:5px;margin:7px 0;}
+.att-item{display:flex;align-items:center;gap:7px;padding:7px 10px;background:var(--bg);border:1px solid var(--border);border-radius:7px;font-size:12px;}
+.att-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--blue-l);}
+.att-zone{border:2px dashed var(--border);border-radius:9px;padding:14px;text-align:center;cursor:pointer;transition:all .2s;margin-top:10px;font-size:12px;color:var(--dim);}
 .att-zone:hover,.att-zone.drag{border-color:var(--gold);background:rgba(201,168,76,.04);color:var(--cream);}
-/* ════════════ BILDUNGSBERICHT ════════════ */
+
+/* BILDUNGSBERICHT */
 .rating-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);}
 .stars{display:flex;gap:3px;}
-.star{width:15px;height:15px;border-radius:3px;background:var(--border2);cursor:pointer;transition:background .1s;}
+.star{width:14px;height:14px;border-radius:3px;background:var(--border2);cursor:pointer;transition:background .1s;}
 .star.on{background:var(--gold);}
-.bb-prev-inner{font-size:12px;line-height:1.6;}
-.bb-prev-title{font-family:'DM Serif Display',serif;font-size:20px;}
-.bb-prev-subtitle{font-size:11px;color:var(--dim);margin-bottom:8px;}
-.bb-prev-section{margin:12px 0;}
-.bb-prev-h{font-size:10px;color:var(--gold);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;font-weight:600;}
-.bb-prev-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04);}
-/* ════════════ QV ════════════ */
+.bb-prev{font-size:12px;line-height:1.65;}
+.bb-prev-h{font-size:10px;color:var(--gold);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;font-weight:600;margin-top:10px;}
+
+/* QV */
 .qv-block{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;}
-.qv-hkb-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
-.qv-hk-row{display:flex;align-items:center;gap:8px;padding:5px 8px;font-size:11px;}
+.qv-sz-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px;}
+.qv-sz-hd{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
 .amp{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
 .amp.g{background:var(--green-l);box-shadow:0 0 5px var(--green-l);}
 .amp.y{background:#E0B840;box-shadow:0 0 5px #E0B840;}
 .amp.r{background:var(--red-l);box-shadow:0 0 5px var(--red-l);}
-.qv-sit{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:11px;margin-bottom:6px;}
-.qv-sit-label{font-size:10px;color:var(--gold);font-weight:600;margin-bottom:3px;}
-/* ════════════ EINSATZPLAN ════════════ */
+
+/* EINSATZPLAN */
+.ep-view-btn{padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:var(--bg2);color:var(--dim);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s;}
+.ep-view-btn.active{background:var(--gold);border-color:var(--gold);color:var(--bg);}
 .ep-grid{display:grid;gap:3px;font-size:11px;}
-.ep-h{font-size:10px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.04em;padding:6px;text-align:center;}
+.ep-h{font-size:10px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.04em;padding:5px;text-align:center;}
 .ep-day{padding:7px;font-size:11px;color:var(--dim);display:flex;flex-direction:column;justify-content:center;}
-.ep-cell{padding:8px 4px;border-radius:6px;font-size:10px;font-weight:500;text-align:center;border:1px solid transparent;}
+.ep-cell{padding:7px 4px;border-radius:6px;font-size:10px;font-weight:500;text-align:center;border:1px solid transparent;cursor:pointer;transition:all .15s;user-select:none;}
+.ep-cell:hover{opacity:.85;transform:scale(1.02);}
+.ep-cell.selected{outline:2px solid var(--gold);outline-offset:2px;}
+.ep-cell.drag-over{outline:2px solid var(--gold);transform:scale(1.04);}
 .ae{background:rgba(46,90,140,.2);border-color:rgba(90,143,192,.3);color:var(--blue-l);}
-.ar{background:rgba(185,146,32,.15);border-color:rgba(185,146,32,.25);color:#E0C040;}
+.ar{background:rgba(184,144,32,.15);border-color:rgba(184,144,32,.25);color:#E0C040;}
 .ak{background:rgba(91,140,90,.2);border-color:rgba(122,192,122,.3);color:var(--green-l);}
 .as{background:rgba(140,70,120,.2);border-color:rgba(180,110,160,.3);color:#D090C0;}
 .ah{background:rgba(160,120,60,.2);border-color:rgba(190,150,90,.3);color:#D0A060;}
+.aa{background:rgba(58,111,160,.15);border-color:rgba(58,111,160,.3);color:var(--blue-l);}
 .af{background:rgba(255,255,255,.03);color:var(--dim);font-style:italic;}
-/* ════════════ KI ════════════ */
-.ki-wrap{display:flex;flex-direction:column;height:calc(100vh - 280px);min-height:400px;}
+.ep-mini-btn{padding:4px 8px;border-radius:5px;font-size:10px;cursor:pointer;border:1px solid transparent;transition:all .15s;user-select:none;}
+.ep-mini-btn:hover{transform:scale(1.05);}
+.ep-day-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;}
+.ep-day-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;}
+.ep-palette{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px;}
+
+/* TERMINE */
+.tm-group-lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;font-weight:600;}
+.tm-card{display:flex;align-items:flex-start;gap:12px;padding:13px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;margin-bottom:7px;transition:border-color .2s;}
+.tm-card:hover{border-color:var(--gold);}
+.tm-card.past{opacity:.6;}
+.tm-date{text-align:center;flex-shrink:0;min-width:56px;font-size:12px;}
+.tm-body{flex:1;}
+
+/* KI */
+.ki-wrap{display:flex;flex-direction:column;height:calc(100vh - 290px);min-height:380px;}
 .ki-top{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);background:rgba(201,168,76,.03);}
-.ki-qb-row{padding:8px 14px;border-bottom:1px solid var(--border);display:flex;gap:6px;flex-wrap:wrap;}
-.ki-msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
-.ki-in-row{padding:12px 14px;border-top:1px solid var(--border);display:flex;gap:8px;}
-.ki-ta{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--cream);font-family:'DM Sans',sans-serif;font-size:13px;padding:9px 13px;outline:none;resize:none;height:42px;transition:border-color .2s;}
+.ki-qb-row{padding:8px 14px;border-bottom:1px solid var(--border);display:flex;gap:5px;flex-wrap:wrap;}
+.ki-msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:9px;}
+.ki-in-row{padding:11px 14px;border-top:1px solid var(--border);display:flex;gap:8px;}
+.ki-ta{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:9px;color:var(--cream);font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 12px;outline:none;resize:none;height:40px;transition:border-color .2s;}
 .ki-ta:focus{border-color:var(--gold);}
-.ki-msg{max-width:84%;padding:11px 15px;border-radius:12px;font-size:13px;line-height:1.55;}
+.ki-msg{max-width:84%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.55;}
 .ki-msg.user{background:var(--gold);color:var(--bg);align-self:flex-end;border-radius:12px 12px 3px 12px;}
 .ki-msg.assistant{background:var(--bg2);border:1px solid var(--border);align-self:flex-start;border-radius:12px 12px 12px 3px;}
-.ki-qb{padding:5px 11px;border-radius:20px;border:1px solid var(--border);background:var(--bg);color:var(--dim);font-size:11px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.ki-qb{padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg);color:var(--dim);font-size:11px;cursor:pointer;transition:all .2s;white-space:nowrap;}
 .ki-qb:hover{border-color:var(--gold);color:var(--gold);}
-.ki-thinking{display:inline-flex;gap:3px;animation:thinking 1s infinite;}
-@keyframes thinking{0%,100%{opacity:.3}50%{opacity:1}}
-/* ════════════ DB ════════════ */
-.stat-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:12px;}
-/* ════════════ TOAST ════════════ */
-#toast{position:fixed;bottom:24px;right:24px;background:var(--bg2);border:1px solid var(--green);border-radius:10px;padding:11px 18px;font-size:13px;z-index:999;opacity:0;transform:translateY(8px);transition:all .3s;pointer-events:none;}
+
+/* DB */
+.sr{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;}
+
+/* TOAST */
+#toast{position:fixed;bottom:22px;right:22px;background:var(--bg2);border-radius:10px;padding:10px 18px;font-size:13px;z-index:999;opacity:0;transform:translateY(8px);transition:all .3s;pointer-events:none;border:1px solid var(--green);}
 #toast.show{opacity:1;transform:translateY(0);}
-/* ════════════ SCROLLBAR ════════════ */
+#toast.ok{border-color:var(--green);color:var(--green-l);}
+#toast.err{border-color:var(--red);color:var(--red-l);}
+#toast.warn{border-color:var(--yellow);color:#E0C040;}
+
 ::-webkit-scrollbar{width:4px;}
 ::-webkit-scrollbar-track{background:var(--bg2);}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
 </style>
-</head>
-<body>
 
-<div id="loading">
-  <div class="spinner"></div>
-  <div style="font-size:13px;color:var(--dim);">Laden…</div>
-</div>
+<!-- LOADING -->
+<div id="loading"><div class="spin"></div><div style="font-size:12px;color:var(--dim);">Laden…</div></div>
+<div id="toast" class="ok"></div>
 
-<div id="toast"></div>
-
-<!-- AUTH SCREEN -->
+<!-- AUTH -->
 <div id="auth-screen">
   <div class="auth-box">
-    <div style="text-align:center;font-size:28px;margin-bottom:12px;">🏨</div>
-    <div class="auth-logo">Ausbildungs-Cockpit</div>
-    <div class="auth-sub">Hotel-Kommunikationsfachfrau/-mann EFZ</div>
+    <div style="text-align:center;font-size:26px;margin-bottom:10px;">🏨</div>
+    <div style="font-family:'DM Serif Display',serif;font-size:20px;text-align:center;margin-bottom:3px;">Ausbildungs-Cockpit</div>
+    <div style="font-size:11px;color:var(--dim);text-align:center;margin-bottom:24px;">Hotel-KoFa EFZ</div>
     <label class="fl">E-Mail</label>
     <input class="fi" type="email" id="auth-email" placeholder="berufsbildner@hotel.ch" autocomplete="email">
     <label class="fl">Passwort</label>
     <input class="fi" type="password" id="auth-pw" placeholder="Passwort">
     <div class="auth-err" id="auth-err"></div>
-    <div style="display:flex;gap:8px;margin-top:16px;">
+    <div style="display:flex;gap:8px;margin-top:14px;">
       <button class="btn btn-gold" style="flex:1;" onclick="login()">Einloggen</button>
       <button class="btn btn-out" style="flex:1;" onclick="register()">Registrieren</button>
     </div>
-    <div class="auth-footer">Daten werden sicher in Firebase gespeichert.</div>
   </div>
 </div>
 
 <!-- APP -->
 <div id="app" style="display:none">
-
 <header>
   <div class="logo">
-    <div class="logo-icon">🏨</div>
-    <div>
-      <div class="logo-name">Ausbildungs-Cockpit</div>
-      <div class="logo-sub">Hotel-KoFa EFZ</div>
-    </div>
+    <div class="logo-ico">🏨</div>
+    <div><div class="logo-n">Ausbildungs-Cockpit</div><div class="logo-s">Hotel-KoFa EFZ</div></div>
   </div>
   <div class="hflex"></div>
   <div style="font-size:11px;color:var(--dim);background:var(--bg2);border:1px solid var(--border);padding:4px 10px;border-radius:20px;" id="today-badge"></div>
-  <div class="user-info">
-    <span id="user-email"></span>
-    <button class="btn btn-out btn-sm" onclick="logout()">Abmelden</button>
-  </div>
+  <span style="font-size:11px;color:var(--dim);margin-left:8px;" id="user-email"></span>
+  <button class="btn btn-out btn-sm" style="margin-left:8px;" onclick="logout()">Abmelden</button>
 </header>
-
 <nav>
   <div class="tab active" onclick="showTab('overview',this)">📊 Übersicht</div>
   <div class="tab" onclick="showTab('bildungsplan',this)">📚 Bildungsplan</div>
@@ -1495,20 +1639,18 @@ textarea.fi{min-height:64px;resize:vertical;}
   <div class="tab" onclick="showTab('bildungsbericht',this)">📋 Bildungsbericht</div>
   <div class="tab" onclick="showTab('qv',this)">🎯 QV-Vorbereitung</div>
   <div class="tab" onclick="showTab('einsatzplan',this)">📅 Einsatzplan</div>
+  <div class="tab" onclick="showTab('termine',this)">🗓 Termine</div>
   <div class="tab" onclick="showTab('ki',this)">🤖 KI-Assistent</div>
   <div class="tab" onclick="showTab('db',this)">💾 Datenbank</div>
 </nav>
 
 <main>
 
-<!-- ─── ÜBERSICHT ─── -->
+<!-- ÜBERSICHT -->
 <div class="section active" id="sec-overview">
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
-    <div>
-      <div class="page-title" id="ov-name">Willkommen</div>
-      <div style="font-size:12px;color:var(--dim);" id="ov-detail">Wähle eine/n Lernende/n</div>
-    </div>
-    <div style="display:flex;gap:8px;">
+  <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:18px;flex-wrap:wrap;gap:10px;">
+    <div><div class="pg-title">Übersicht</div><div class="pg-sub">Aktueller Ausbildungsstand</div></div>
+    <div style="display:flex;gap:7px;">
       <button class="btn btn-out" onclick="openModal('lehrling')">+ Lehrling</button>
       <button class="btn btn-gold" onclick="openNewBericht()">+ Lernbericht</button>
     </div>
@@ -1516,212 +1658,212 @@ textarea.fi{min-height:64px;resize:vertical;}
   <div class="lb" id="ov-lb"></div>
   <div class="g4" style="margin-bottom:14px;" id="ov-stats"></div>
   <div class="g2">
-    <div class="card">
-      <div class="card-t">Fortschritt HKB</div>
-      <div class="card-s" id="ov-sub">Handlungskompetenzbereich-Übersicht</div>
-      <div id="ov-prog"></div>
-    </div>
-    <div class="card">
-      <div class="card-t">Pendente Aufgaben</div>
-      <div class="card-s">Offene Aktionen</div>
-      <div id="ov-tasks"></div>
-    </div>
+    <div class="card"><div class="card-t">HKB Fortschritt</div><div class="card-s">Handlungskompetenzbereiche</div><div id="ov-prog"></div></div>
+    <div class="card"><div class="card-t">Offene Aufgaben</div><div class="card-s">Pendente Aktionen & Termine</div><div id="ov-tasks"></div></div>
   </div>
 </div>
 
-<!-- ─── BILDUNGSPLAN ─── -->
+<!-- BILDUNGSPLAN -->
 <div class="section" id="sec-bildungsplan">
-  <div class="page-title">Bildungsplan</div>
-  <div class="page-sub">21 Handlungskompetenzen · Leistungsziele einzeln abhakbar · HK-Status wird automatisch berechnet</div>
+  <div class="pg-title">Bildungsplan</div>
+  <div class="pg-sub">21 Handlungskompetenzen · Leistungsziele abhaken · Semester-Filter</div>
   <div class="lb" id="bp-lb"></div>
   <div class="card" style="margin-bottom:14px;">
-    <div class="card-t">Gesamtfortschritt Leistungsziele</div>
-    <div class="card-s" id="bp-sub">—</div>
-    <div class="pbar" style="height:8px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <div><div class="card-t">Gesamtfortschritt</div><div class="card-s" id="bp-sub">—</div></div>
+      <div style="font-size:14px;font-weight:600;" id="bp-total-lbl">0%</div>
+    </div>
+    <div class="pbar" style="height:8px;margin-bottom:12px;">
       <div class="pfill" id="bp-total-bar" style="width:0%;background:var(--gold)"></div>
     </div>
-    <div style="font-size:11px;color:var(--dim);margin-top:4px;text-align:right;" id="bp-total-label">0%</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;" id="bp-sem-btns"></div>
   </div>
-  <div class="card">
-    <div class="card-t">Handlungskompetenzen</div>
-    <div class="card-s">Klicke auf einen HKB zum Aufklappen · Leistungsziele einzeln abhaken</div>
-    <div id="bp-hkb"></div>
-  </div>
+  <div class="card"><div class="card-t">Handlungskompetenzen</div><div class="card-s">HKB aufklappen · LZ einzeln abhaken</div><div id="bp-hkb"></div></div>
 </div>
 
-<!-- ─── LERNBERICHTE ─── -->
+<!-- LERNBERICHTE -->
 <div class="section" id="sec-lernberichte">
   <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">
-    <div>
-      <div class="page-title">Lernberichte</div>
-      <div class="page-sub">Min. 2 Berichte pro Semester · Anhänge (PDF/Bilder) direkt hochladbar</div>
-    </div>
+    <div><div class="pg-title">Lernberichte</div><div class="pg-sub">Klicken zum Öffnen · Bearbeiten · Anhänge hochladen</div></div>
     <button class="btn btn-gold" onclick="openNewBericht()">+ Neu</button>
   </div>
   <div class="lb" id="lb-lb"></div>
-  <div class="card">
-    <div id="b-grid"></div>
-    <div style="display:flex;gap:16px;margin-top:12px;flex-wrap:wrap;">
-      <span style="font-size:11px;color:var(--dim);display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--green-l);display:inline-block;"></span>Visiert</span>
-      <span style="font-size:11px;color:var(--dim);display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#E0B840;display:inline-block;"></span>Eingereicht</span>
-      <span style="font-size:11px;color:var(--dim);display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--border2);display:inline-block;"></span>Offen</span>
-    </div>
-  </div>
-  <div id="b-detail-panel"></div>
-</div>
-
-<!-- ─── BILDUNGSBERICHT ─── -->
-<div class="section" id="sec-bildungsbericht">
-  <div class="page-title">Bildungsbericht</div>
-  <div class="page-sub">Offizieller Bildungsbericht nach 4 Kompetenzdimensionen · Wird automatisch generiert</div>
-  <div class="lb" id="bb-lb"></div>
   <div class="g2">
+    <div class="card"><div class="card-t">Übersicht</div><div id="b-grid"></div></div>
+    <div style="display:none;" id="b-detail"></div>
+  </div>
+</div>
+
+<!-- BILDUNGSBERICHT -->
+<div class="section" id="sec-bildungsbericht">
+  <div class="pg-title">Bildungsbericht</div>
+  <div class="pg-sub">Abteilungsbewertungen · Berufsbildner sieht alle Bewertungen und gibt finale Beurteilung ab</div>
+  <div class="lb" id="bb-lb"></div>
+  <div id="bb-role"></div>
+  <div class="g2" style="margin-top:14px;">
+    <div id="bb-form"></div>
     <div class="card">
-      <div class="card-t">Bewertung</div>
-      <div class="card-s">1 = Ungenügend · 6 = Ausgezeichnet</div>
-      <div id="bb-ratings"></div>
-      <div class="divider"></div>
-      <label class="fl">Allgemeine Bemerkungen</label>
-      <textarea class="fi" id="bb-bem" placeholder="Stärken, Entwicklungsfelder, besondere Leistungen..."></textarea>
-      <div style="display:flex;gap:8px;margin-top:12px;">
-        <button class="btn btn-gold" onclick="generateBB()">📋 Bericht generieren</button>
-        <button class="btn btn-out" onclick="window.saveBewertungen()">💾 Speichern</button>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-t">Vorschau</div>
+      <div class="card-t">Bericht-Vorschau</div>
       <div class="card-s">Klicke "Bericht generieren"</div>
-      <div id="bb-preview"><div style="text-align:center;padding:28px 0;color:var(--dim);font-size:12px;">Klicke "Bericht generieren" für die Vorschau.</div></div>
+      <div id="bb-preview"><div style="text-align:center;padding:28px;color:var(--dim);font-size:12px;">Klicke «Bericht generieren» für die Vorschau.</div></div>
     </div>
   </div>
 </div>
 
-<!-- ─── QV VORBEREITUNG ─── -->
+<!-- QV -->
 <div class="section" id="sec-qv">
-  <div class="page-title">QV-Vorbereitung 2026</div>
-  <div class="page-sub">CPEX (3 Situationen) · PEX (Fachgespräch) · Berufskenntnisse · Bereitschaft basierend auf LZ-Fortschritt</div>
+  <div class="pg-title">QV-Vorbereitung 2026</div>
+  <div class="pg-sub">CPEX (3 Situationen) · PEX (Fachgespräch) · Prüfungsaufgaben abhaken</div>
   <div class="lb" id="qv-lb"></div>
   <div class="g3" style="margin-bottom:14px;">
-    <div style="background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.25);border-radius:12px;padding:18px;text-align:center;">
+    <div style="background:rgba(201,168,76,.07);border:1px solid rgba(201,168,76,.25);border-radius:12px;padding:18px;text-align:center;">
       <div style="font-family:'DM Serif Display',serif;font-size:44px;color:var(--gold);" id="qv-days">–</div>
       <div style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-top:4px;">Tage bis QV</div>
     </div>
-    <div style="background:rgba(46,90,140,.08);border:1px solid rgba(90,143,192,.25);border-radius:12px;padding:18px;">
-      <div class="card-t">CPEX</div>
-      <div class="card-s">3 Prüfungssituationen</div>
-      <div class="qv-sit"><div class="qv-sit-label">Situation 1 · HKB 1 & 3</div><div style="font-size:12px;">Gast-Check-in mit Sonderwunsch & Reklamation</div></div>
-      <div class="qv-sit"><div class="qv-sit-label">Situation 2 · HKB 1 & 2</div><div style="font-size:12px;">Telefonische Reservierung & schriftliche Korrespondenz</div></div>
-      <div class="qv-sit"><div class="qv-sit-label">Situation 3 · HKB 4</div><div style="font-size:12px;">Nachhaltigkeit & Qualitätssicherung</div></div>
+    <div class="card">
+      <div class="card-t">Gesamtfortschritt LZ</div>
+      <div class="card-s" id="qv-lz-pct-txt">—</div>
+      <div class="pbar"><div class="pfill" id="qv-lz-bar" style="width:0%;background:var(--green-l)"></div></div>
+      <div style="text-align:right;font-size:12px;color:var(--green-l);margin-top:4px;" id="qv-lz-pct">0%</div>
     </div>
-    <div style="background:rgba(91,140,90,.08);border:1px solid rgba(122,192,122,.25);border-radius:12px;padding:18px;">
-      <div class="card-t">PEX · Alle HKB</div>
-      <div class="card-s">Fachgespräch mit Expertinnen</div>
-      <div style="font-size:12px;line-height:1.6;">Das Fachgespräch dauert 40 Minuten und umfasst alle 4 Handlungskompetenzbereiche. Bewertet werden Fach-, Methoden-, Sozial- und Selbstkompetenz.</div>
-      <div class="divider"></div>
-      <div style="font-size:11px;color:var(--dim);">Gesamtfortschritt LZ:</div>
-      <div class="pbar" style="margin-top:5px;">
-        <div class="pfill" id="qv-overall-bar" style="width:0%;background:var(--green-l)"></div>
+    <div class="card">
+      <div class="card-t">Prüfungsformat</div>
+      <div style="font-size:12px;line-height:1.7;color:var(--dim);">
+        <b style="color:var(--cream)">CPEX</b> · 3 Situationen · je 20 Min.<br>
+        <b style="color:var(--cream)">PEX</b> · Fachgespräch · 40 Min.<br>
+        <b style="color:var(--cream)">BK</b> · Berufskenntnisse · schriftlich
       </div>
-      <div style="text-align:right;font-size:11px;color:var(--green-l);margin-top:3px;" id="qv-overall-pct">0%</div>
     </div>
   </div>
-  <div class="card">
-    <div class="card-t">Bereitschaft pro Handlungskompetenz</div>
-    <div class="card-s">Grün ≥ 80% · Gelb ≥ 50% · Rot &lt; 50% der Leistungsziele erledigt</div>
-    <div id="qv-status"></div>
+  <div class="g2">
+    <div class="card"><div class="card-t">Bereitschaft pro HKB</div><div class="card-s">Grün ≥80% · Gelb ≥50% · Rot &lt;50% LZ</div><div id="qv-hkb"></div></div>
+    <div class="card"><div class="card-t">Prüfungsszenarien & Aufgaben</div><div class="card-s">Übungen abhaken · Fortschritt pro Szenario</div><div id="qv-szenarien"></div></div>
   </div>
 </div>
 
-<!-- ─── EINSATZPLAN ─── -->
+<!-- EINSATZPLAN -->
 <div class="section" id="sec-einsatzplan">
-  <div class="page-title">Einsatzplan</div>
-  <div class="page-sub">Wochenplanung & Pflichtabteilungen · Gemäss Bildungsplan HKB 1.2 (Nahtstellen)</div>
-  <div class="card" style="margin-bottom:14px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+  <div class="pg-title">Einsatzplan</div>
+  <div class="pg-sub">Klicke auf eine Zelle und wähle eine Abteilung · Wochenansicht und Tagesansicht</div>
+  <div class="card" style="margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
       <div>
-        <div class="card-t" id="kw-label">Aktuelle Woche</div>
-        <div class="card-s">Alle Lernenden im Überblick</div>
+        <div class="card-t" id="ep-label">Woche</div>
+        <div class="card-s">Klicke auf eine Zelle → wähle Abteilung</div>
       </div>
-      <div style="display:flex;gap:6px;">
-        <button class="btn btn-out btn-sm" onclick="changeWeek(-1)">← Vorwoche</button>
-        <button class="btn btn-out btn-sm" onclick="changeWeek(0)">Heute</button>
-        <button class="btn btn-out btn-sm" onclick="changeWeek(1)">Nächste →</button>
+      <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;">
+        <button class="ep-view-btn active" id="epv-week" onclick="setEpView('week')">Woche</button>
+        <button class="ep-view-btn" id="epv-day" onclick="setEpView('day')">Tag</button>
+        <div style="width:1px;height:20px;background:var(--border);margin:0 4px;"></div>
+        <button class="btn btn-out btn-sm" onclick="epView==='week'?changeWeek(-1):changeDay(-1)">←</button>
+        <button class="btn btn-out btn-sm" onclick="epView==='week'?changeWeek(0):changeDay(0)">Heute</button>
+        <button class="btn btn-out btn-sm" onclick="epView==='week'?changeWeek(1):changeDay(1)">→</button>
       </div>
     </div>
-    <div id="ep-grid"></div>
+    <!-- Drag-Palette -->
+    <div class="ep-palette" id="ep-palette"></div>
+    <div id="ep-main"></div>
   </div>
+  <!-- Pflichtabteilungen Info -->
   <div class="card">
-    <div class="card-t">Pflichtabteilungen</div>
-    <div class="card-s">Lernende müssen alle Abteilungen durchlaufen (HKB 1.2 Nahtstellen)</div>
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;font-size:12px;margin-top:8px;">
-      <div style="padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border);"><div class="ep-cell ae" style="margin-bottom:5px;">Empfang</div>Mind. 6 Wochen</div>
-      <div style="padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border);"><div class="ep-cell ar" style="margin-bottom:5px;">Reservierung</div>Mind. 4 Wochen</div>
-      <div style="padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border);"><div class="ep-cell ak" style="margin-bottom:5px;">Kommunikation</div>Mind. 4 Wochen</div>
-      <div style="padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border);"><div class="ep-cell as" style="margin-bottom:5px;">Service/F&B</div>Mind. 4 Wochen</div>
-      <div style="padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border);"><div class="ep-cell ah" style="margin-bottom:5px;">Housekeeping</div>Mind. 2 Wochen</div>
+    <div class="card-t">Pflichtabteilungen (HKB 1.2)</div>
+    <div class="card-s">Alle Lernenden müssen alle Abteilungen durchlaufen</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;">
+      <div style="padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border);text-align:center;"><div class="ep-cell ae" style="margin-bottom:5px;">🛎️ Empfang</div><div class="dim" style="font-size:10px;">mind. 6 Wochen</div></div>
+      <div style="padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border);text-align:center;"><div class="ep-cell ar" style="margin-bottom:5px;">📞 Reservierung</div><div class="dim" style="font-size:10px;">mind. 4 Wochen</div></div>
+      <div style="padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border);text-align:center;"><div class="ep-cell ak" style="margin-bottom:5px;">💬 Kommunikation</div><div class="dim" style="font-size:10px;">mind. 4 Wochen</div></div>
+      <div style="padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border);text-align:center;"><div class="ep-cell as" style="margin-bottom:5px;">🍽️ Service/F&B</div><div class="dim" style="font-size:10px;">mind. 4 Wochen</div></div>
+      <div style="padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border);text-align:center;"><div class="ep-cell ah" style="margin-bottom:5px;">🛏️ Housekeeping</div><div class="dim" style="font-size:10px;">mind. 2 Wochen</div></div>
     </div>
   </div>
 </div>
 
-<!-- ─── KI ASSISTENT ─── -->
+<!-- TERMINE -->
+<div class="section" id="sec-termine">
+  <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:18px;flex-wrap:wrap;gap:10px;">
+    <div><div class="pg-title">Termine & Abmachungen</div><div class="pg-sub">Fristen, Lernziele, Vereinbarungen und Meetings pro Lernende/r</div></div>
+    <button class="btn btn-gold" onclick="openNewTermin()">+ Termin</button>
+  </div>
+  <div class="lb" id="tm-lb"></div>
+  <div class="g2">
+    <div class="card"><div id="tm-list"></div></div>
+    <div>
+      <div class="card" style="margin-bottom:14px;">
+        <div class="card-t">Termin-Typen</div>
+        <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;">
+          <div style="display:flex;align-items:center;gap:8px;"><span>📝</span> <b>Lernbericht</b> — Abgabefrist für Lernberichte</div>
+          <div style="display:flex;align-items:center;gap:8px;"><span>📚</span> <b>Lernziel</b> — Thema bis Datum beherrschen</div>
+          <div style="display:flex;align-items:center;gap:8px;"><span>🤝</span> <b>Gespräch</b> — Semestergespräch, Feedback</div>
+          <div style="display:flex;align-items:center;gap:8px;"><span>🎯</span> <b>Prüfung</b> — QV, Zwischenprüfung, ÜK</div>
+          <div style="display:flex;align-items:center;gap:8px;"><span>📌</span> <b>Sonstiges</b> — Freie Vereinbarungen</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- KI -->
 <div class="section" id="sec-ki">
-  <div class="page-title">KI-Assistent</div>
-  <div class="page-sub">Fragen zum Bildungsplan, QV, Bildungsberichten und Ausbildungsmethoden via Anthropic Claude</div>
+  <div class="pg-title">KI-Assistent</div>
+  <div class="pg-sub">Bildungsplan-Fragen, QV-Tipps, Ausbildungsmethoden via Anthropic Claude</div>
   <div class="card" style="padding:0;overflow:hidden;">
     <div class="ki-top">
       <span style="font-size:11px;color:var(--dim);white-space:nowrap;">API-Key:</span>
-      <input type="password" class="fi" id="ki-key" placeholder="sk-ant-api03-... (lokal in Firebase gespeichert)" style="margin:0;" onchange="saveApiKey()">
+      <input type="password" class="fi" id="ki-key" placeholder="sk-ant-..." style="margin:0;" onchange="saveApiKey()">
       <span id="ki-status" style="font-size:11px;white-space:nowrap;"></span>
     </div>
     <div class="ki-qb-row">
       <span style="font-size:11px;color:var(--dim);align-self:center;">Schnell:</span>
-      <button class="ki-qb" onclick="qAsk('Was sind die wichtigsten Leistungsziele im HKB 1?')">HKB 1 Leistungsziele</button>
-      <button class="ki-qb" onclick="qAsk('Wie bereite ich eine/n Lernende/n optimal auf das QV-Fachgespräch vor?')">QV Fachgespräch</button>
-      <button class="ki-qb" onclick="qAsk('Welche Kompetenzdimensionen werden im Bildungsbericht bewertet und was bedeuten sie?')">Bildungsbericht</button>
-      <button class="ki-qb" onclick="qAsk('Erkläre die Taxonomiestufen K1-K6 nach Bloom mit konkreten Hotel-KoFa-Beispielen.')">Taxonomie K1-K6</button>
-      <button class="ki-qb" onclick="qAsk('Was sind die Unterschiede zwischen CPEX und PEX im QV?')">CPEX vs. PEX</button>
+      <button class="ki-qb" onclick="qAsk('Was sind die wichtigsten Leistungsziele im HKB 1?')">HKB 1</button>
+      <button class="ki-qb" onclick="qAsk('Wie bereite ich optimal auf das PEX-Fachgespräch vor?')">PEX Tipps</button>
+      <button class="ki-qb" onclick="qAsk('Was sind die Unterschiede zwischen CPEX und PEX?')">CPEX vs PEX</button>
+      <button class="ki-qb" onclick="qAsk('Erkläre die Taxonomiestufen K1-K6 mit Hotel-Beispielen.')">Taxonomie K1-K6</button>
+      <button class="ki-qb" onclick="qAsk('Wie führe ich ein gutes Semestergespräch mit Lernenden?')">Semestergespräch</button>
     </div>
     <div class="ki-wrap">
       <div class="ki-msgs" id="ki-msgs">
-        <div class="ki-msg assistant">👋 <strong>Guten Tag!</strong> Ich bin dein Bildungsplan-Assistent für Hotel-KoFa EFZ. Ich kenne alle 4 HKBs, 21 Handlungskompetenzen, alle Leistungsziele und die QV-Anforderungen 2026.<br><br>Gib oben deinen <strong>Anthropic API-Key</strong> ein, um loszulegen — er wird sicher in deiner Firebase gespeichert.</div>
+        <div class="ki-msg assistant">👋 <strong>Guten Tag!</strong> Ich kenne den Bildungsplan Hotel-KoFa EFZ mit allen 4 HKBs, 21 HK und allen Leistungszielen. Gib deinen <strong>Anthropic API-Key</strong> ein und stelle Fragen zur Ausbildung.</div>
       </div>
       <div class="ki-in-row">
-        <textarea class="ki-ta" id="ki-in" placeholder="Frage zur Ausbildung oder zum Bildungsplan…" onkeydown="kiKey(event)" oninput="kiResize(this)"></textarea>
-        <button class="btn btn-gold" onclick="kiSend()" style="align-self:flex-end;">Senden ↑</button>
+        <textarea class="ki-ta" id="ki-in" placeholder="Frage zur Ausbildung…" onkeydown="kiKey(event)" oninput="kiResize(this)"></textarea>
+        <button class="btn btn-gold" onclick="kiSend()" style="align-self:flex-end;">↑</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ─── DATENBANK ─── -->
+<!-- DATENBANK -->
 <div class="section" id="sec-db">
-  <div class="page-title">Datenbank</div>
-  <div class="page-sub">Alle Daten in Firebase Firestore (sicher, cloud-basiert) · Dateien in Firebase Storage</div>
+  <div class="pg-title">Datenbank & Einstellungen</div>
+  <div class="pg-sub">Firebase Firestore · Backup Export/Import · QV-Datum · Lernende verwalten</div>
   <div class="g2">
     <div>
       <div class="card" style="margin-bottom:14px;">
-        <div class="card-t">Lehrlinge verwalten</div>
-        <div class="card-s">Lernende hinzufügen oder entfernen</div>
+        <div class="card-t">Lernende verwalten</div>
         <div id="db-lehrlinge"></div>
         <button class="btn btn-out" style="width:100%;margin-top:10px;" onclick="openModal('lehrling')">+ Lehrling hinzufügen</button>
       </div>
       <div class="card">
-        <div class="card-t">Backup</div>
-        <div class="card-s">Alle Daten exportieren / importieren</div>
-        <button class="btn btn-gold" style="width:100%;margin-bottom:8px;" onclick="exportBackup()">⬇ Backup exportieren (JSON)</button>
-        <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importBackup(event)">
-        <button class="btn btn-out" style="width:100%;" onclick="document.getElementById('import-file').click()">📁 Backup importieren</button>
+        <div class="card-t">QV-Datum</div>
+        <div class="card-s">Stichtag für den Countdown</div>
+        <div style="display:flex;gap:8px;">
+          <input class="fi" type="date" id="db-qv-datum" style="flex:1;">
+          <button class="btn btn-gold" onclick="saveQVDatum()">Speichern</button>
+        </div>
       </div>
     </div>
-    <div class="card">
-      <div class="card-t">Datenbankstatus</div>
-      <div class="card-s">Firebase Firestore + Storage</div>
-      <div id="db-status"></div>
-      <div class="divider"></div>
-      <div style="font-size:12px;color:var(--dim);margin-bottom:10px;">Firebase-Konfiguration:</div>
-      <div style="font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;font-family:monospace;line-height:1.7;">
-        Konfiguration in der HTML-Datei unter <code>firebaseConfig</code> anpassen.<br>
-        Werte aus der Firebase Console kopieren.
+    <div>
+      <div class="card" style="margin-bottom:14px;">
+        <div class="card-t">Datenbankstatus</div>
+        <div class="card-s">Firebase Firestore + Storage</div>
+        <div id="db-status"></div>
+      </div>
+      <div class="card">
+        <div class="card-t">Backup</div>
+        <div class="card-s">Alle Daten exportieren / importieren</div>
+        <button class="btn btn-gold" style="width:100%;margin-bottom:8px;" onclick="exportBackup()">⬇ Export (JSON)</button>
+        <input type="file" id="import-f" accept=".json" style="display:none;" onchange="importBackup(event)">
+        <button class="btn btn-out" style="width:100%;" onclick="document.getElementById('import-f').click()">📁 Import</button>
       </div>
     </div>
   </div>
@@ -1730,18 +1872,14 @@ textarea.fi{min-height:64px;resize:vertical;}
 </main>
 </div>
 
-<!-- ─── MODALS ─── -->
+<!-- MODALS -->
 <div class="modal-overlay" id="modal-lehrling">
   <div class="modal">
     <div class="modal-t">Lehrling erfassen</div>
     <label class="fl">Vorname</label><input class="fi" type="text" id="nl-vn" placeholder="z.B. Mia">
     <label class="fl">Nachname</label><input class="fi" type="text" id="nl-nn" placeholder="z.B. Steiner">
     <label class="fl">Lehrjahr</label>
-    <select class="fi" id="nl-lj">
-      <option value="1">1. Lehrjahr</option>
-      <option value="2" selected>2. Lehrjahr</option>
-      <option value="3">3. Lehrjahr</option>
-    </select>
+    <select class="fi" id="nl-lj"><option value="1">1. Lehrjahr</option><option value="2" selected>2. Lehrjahr</option><option value="3">3. Lehrjahr</option></select>
     <label class="fl">Ausbildungsstart</label>
     <input class="fi" type="month" id="nl-start" value="2024-08">
     <div class="modal-actions">
@@ -1753,32 +1891,57 @@ textarea.fi{min-height:64px;resize:vertical;}
 
 <div class="modal-overlay" id="modal-bericht">
   <div class="modal">
-    <div class="modal-t">Neuer Lernbericht</div>
-    <label class="fl">Lernende/r</label>
-    <select class="fi" id="nb-lid"></select>
+    <div class="modal-t" id="nb-modal-title">Neuer Lernbericht</div>
+    <input type="hidden" id="nb-edit-id">
+    <label class="fl">Lernende/r</label><select class="fi" id="nb-lid"></select>
     <label class="fl">Semester</label>
     <select class="fi" id="nb-sem">
       <option value="1">Semester 1</option><option value="2">Semester 2</option>
       <option value="3">Semester 3</option><option value="4" selected>Semester 4</option>
       <option value="5">Semester 5</option><option value="6">Semester 6</option>
     </select>
-    <label class="fl">Bezug Handlungskompetenz</label>
-    <select class="fi" id="nb-hk"></select>
+    <label class="fl">Handlungskompetenz</label><select class="fi" id="nb-hk"></select>
     <label class="fl">Thema / Titel</label>
     <input class="fi" type="text" id="nb-thema" placeholder="z.B. Check-in bei Gruppenanreise">
     <label class="fl">Status</label>
     <select class="fi" id="nb-status">
-      <option value="eingereicht">Eingereicht (von Lernenden)</option>
-      <option value="visiert">Visiert (Berufsbildner)</option>
+      <option value="eingereicht">Eingereicht</option>
+      <option value="visiert">Visiert</option>
       <option value="offen">Offen</option>
     </select>
     <label class="fl">Positiv aufgefallen</label>
-    <textarea class="fi" id="nb-pos" placeholder="Was ist besonders positiv aufgefallen..."></textarea>
+    <textarea class="fi" id="nb-pos" placeholder="Stärken und positive Beobachtungen…"></textarea>
     <label class="fl">Verbesserungsmöglichkeiten</label>
-    <textarea class="fi" id="nb-verb" placeholder="Folgende Verbesserungsmöglichkeiten sehe ich..."></textarea>
+    <textarea class="fi" id="nb-verb" placeholder="Entwicklungsfelder…"></textarea>
     <div class="modal-actions">
       <button class="btn btn-out" onclick="closeModal('bericht')">Abbrechen</button>
       <button class="btn btn-gold" onclick="saveBericht()">✓ Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-termin">
+  <div class="modal">
+    <div class="modal-t" id="tm-modal-title">Neuer Termin</div>
+    <input type="hidden" id="tm-edit-id">
+    <label class="fl">Lernende/r</label><select class="fi" id="tm-lid"></select>
+    <label class="fl">Titel / Beschreibung</label>
+    <input class="fi" type="text" id="tm-titel" placeholder="z.B. Lernbericht Semester 3 einreichen">
+    <label class="fl">Datum</label>
+    <input class="fi" type="date" id="tm-datum">
+    <label class="fl">Typ</label>
+    <select class="fi" id="tm-typ">
+      <option value="lernbericht">📝 Lernbericht</option>
+      <option value="lernziel">📚 Lernziel</option>
+      <option value="meeting">🤝 Gespräch/Meeting</option>
+      <option value="pruefung">🎯 Prüfung/QV</option>
+      <option value="sonstiges">📌 Sonstiges</option>
+    </select>
+    <label class="fl">Zusätzliche Notizen (optional)</label>
+    <textarea class="fi" id="tm-beschr" placeholder="Details zur Vereinbarung…"></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-out" onclick="closeModal('termin')">Abbrechen</button>
+      <button class="btn btn-gold" onclick="saveTermin()">✓ Speichern</button>
     </div>
   </div>
 </div>
