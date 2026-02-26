@@ -1,812 +1,1765 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Lehrlings-Cockpit</title>
-  <style>
-    body{font-family:system-ui,Segoe UI,Arial;margin:0;background:#f6f7f9;color:#111}
-    header{background:#1f4e79;color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center}
-    main{padding:18px;max-width:1200px;margin:0 auto}
-    .card{background:#fff;border:1px solid #e6e8ee;border-radius:12px;padding:14px;margin:10px 0}
-    .row{display:flex;gap:10px;flex-wrap:wrap}
-    .row > *{flex:1 1 260px}
-    input,select,button,textarea{width:100%;padding:10px;border:1px solid #d5d9e2;border-radius:10px;box-sizing:border-box}
-    textarea{min-height:84px}
-    button{background:#1f4e79;color:#fff;border:none;cursor:pointer}
-    button.secondary{background:#e9eef6;color:#1f4e79}
-    button.danger{background:#b00020}
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:10px;border-bottom:1px solid #eef0f5;text-align:left;vertical-align:top}
-    th{color:#1f4e79}
-    .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#eef2ff}
-    .muted{color:#666}
-    .hidden{display:none}
-    .right{display:flex;gap:8px;align-items:center}
-    .nav{display:flex;gap:8px;flex-wrap:wrap}
-    .nav button{width:auto;padding:8px 10px;border-radius:999px}
-    .ampel{font-size:18px}
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    @media (max-width: 900px){ .grid2{grid-template-columns:1fr} }
-    .ok{color:#0a7a2f}
-    .warn{color:#9a6b00}
-    .bad{color:#b00020}
-    .small{font-size:12px}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ausbildungs-Cockpit | Hotel-KoFa EFZ</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, deleteDoc, query, where, serverTimestamp }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
+
+// ════════════════════════════════════════════════════════════
+// FIREBASE CONFIG — ersetze mit deinen Werten aus Firebase Console
+// ════════════════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey:            "DEIN_API_KEY",
+  authDomain:        "dein-projekt.firebaseapp.com",
+  projectId:         "dein-projekt-id",
+  storageBucket:     "dein-projekt.appspot.com",
+  messagingSenderId: "123456789",
+  appId:             "1:123456789:web:abcdef123456"
+};
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+const stor = getStorage(app);
+
+// ════════════════════════════════════════════════════════════
+// BILDUNGSPLAN DATEN (vollständig nach offiz. Bildungsplan 2017)
+// ════════════════════════════════════════════════════════════
+const BP = [
+  { id: 1, code: "HKB 1", color: "#C9A84C",
+    titel: "Beraten und Betreuen von Gästen und Partnern",
+    kompetenzen: [
+      { id: "1.1", titel: "Kommunikation bei Gästen und Partnern bedarfs- und zielorientiert gestalten", tax: "K4",
+        lz: [
+          "Beratungs-, Verkaufs-, Feedback- und Reklamationsgespräche situationsgerecht mit geeigneter Fragetechnik führen",
+          "Grundlagen der Kommunikation (4 Ebenen: Sach-, Beziehungs-, Selbstkundgabe-, Appellebene) kennen und anwenden",
+          "Verbale und nonverbale Kommunikation reflektieren und Schlüsse ziehen",
+          "Betriebliche Vorgaben für Auftritt und persönliches Erscheinungsbild umsetzen",
+          "Empathischen Umgang mit Gästen, Vorgesetzten, Partnern und Mitarbeitenden pflegen",
+          "Beratung und Betreuung unter Berücksichtigung kultureller und religiöser Hintergründe gestalten"
+        ]
+      },
+      { id: "1.2", titel: "Arbeits- und Tagesplanung kontrollieren und sicherstellen", tax: "K4",
+        lz: [
+          "Betriebseigenes Organigramm mit Nahtstellen beschreiben und zeichnen",
+          "Anforderungsprofile für Stellen in verschiedenen Bereichen verfassen",
+          "Betriebliche Prozesse in Frontoffice, Backoffice, Küche, Restauration und Hauswirtschaft anwenden",
+          "Nahtstellen zwischen den Bereichen analysieren",
+          "Tagesplanung im Zusammenhang mit den Nahtstellen kontrollieren"
+        ]
+      },
+      { id: "1.3", titel: "Betriebliche Produkte und Dienstleistungen zuordnen und Produkte herstellen", tax: "K3",
+        lz: [
+          "Gästen das Speise- und Getränkeangebot und dessen Besonderheiten erklären",
+          "Fachgerechten Getränkeservice durchführen",
+          "Maschinen und Geräte in der Küche nach Vorschrift bedienen",
+          "Ausgewählte Speisen gemäss betrieblichen Vorgaben herstellen",
+          "Ernährungsgrundsätze bei der Herstellung von Speisen anwenden",
+          "Gäste mit Nahrungsmittelallergien und -intoleranzen beraten"
+        ]
+      },
+      { id: "1.4", titel: "Gäste betreuen, betriebliche Produkte und Dienstleistungen verkaufen", tax: "K4",
+        lz: [
+          "Mise en Place für Getränke- und Speiseangebot fachgerecht vorbereiten",
+          "Tische gemäss betrieblichen Vorgaben eindecken und Servicegrundregeln umsetzen",
+          "Check-in gemäss betrieblichen Vorgaben und System durchführen",
+          "Check-out gemäss betrieblichen Vorgaben und System durchführen",
+          "Verkaufsfördernde Beratungsgespräche führen und Upselling einsetzen",
+          "Betriebliche Dienstleistungen und Produkte im Beratungsgespräch beschreiben",
+          "Gästebetreuung proaktiv und vorausschauend gestalten",
+          "Bedürfnisse der Gäste erfassen und als Gastgeber/-in handeln",
+          "Ambiente gemäss Anlässen und betrieblichen Vorgaben gestalten"
+        ]
+      },
+      { id: "1.5", titel: "Rückmeldungen erfassen, auswerten, Feedback geben und Massnahmen umsetzen", tax: "K4",
+        lz: [
+          "Reklamationsgespräche situationsgerecht nach betrieblichen Vorgaben führen",
+          "Gästereklamationen systematisch analysieren und Massnahmen ableiten",
+          "Instrumente zur Erfassung der Gästezufriedenheit anwenden",
+          "Einfache Gästefeedbacks beantworten",
+          "Werbewirksame Antworten auf Bewertungsplattformen formulieren"
+        ]
+      },
+      { id: "1.6", titel: "Gespräche in der zweiten Landessprache führen", tax: "K3",
+        lz: [
+          "Höflichkeitskonventionen in der zweiten Landessprache anwenden",
+          "Mündliche Mitteilungen in der zweiten Landessprache weitergeben",
+          "Gespräche aus dem Betriebsalltag in der zweiten Landessprache führen",
+          "Kenntnisse über Produkte und Dienstleistungen verkaufsfördernd in der zweiten Landessprache einsetzen"
+        ]
+      },
+      { id: "1.7", titel: "Gespräche in der dritten Sprache Englisch führen", tax: "K3",
+        lz: [
+          "Höflichkeitskonventionen auf Englisch anwenden",
+          "Mündliche Mitteilungen auf Englisch weitergeben",
+          "Gespräche aus dem Betriebsalltag auf Englisch führen",
+          "Kenntnisse über Produkte und Dienstleistungen verkaufsfördernd auf Englisch einsetzen"
+        ]
+      }
+    ]
+  },
+  { id: 2, code: "HKB 2", color: "#3A6FA0",
+    titel: "Gestalten und Organisieren von Marketingmassnahmen und Kooperationen",
+    kompetenzen: [
+      { id: "2.1", titel: "Betriebliche und Kooperationsangebote planen und gestalten", tax: "K5",
+        lz: [
+          "Möglichkeiten für saisonale und Kooperationsangebote für verschiedene Gästegruppen aufzeigen",
+          "Zielgruppen des Betriebs analysieren",
+          "Produkte und Dienstleistungen für zielgruppengerechtes Angebot zusammenstellen",
+          "Offerten einholen und nach betrieblichen Vorgaben vergleichen"
+        ]
+      },
+      { id: "2.2", titel: "Einfache Medien und Kommunikationsmittel mit aktuellen Technologien gestalten", tax: "K5",
+        lz: [
+          "Werbeträger mit Text-, Kalkulations- und Grafikprogrammen entwerfen",
+          "Adressatengerechte Folien und Präsentationen erstellen",
+          "Gesetzliche Regeln zu Nutzungsrechten (Urheberrecht) umsetzen",
+          "Passende Informationsträger für betriebliche Angebote bestimmen und bearbeiten"
+        ]
+      },
+      { id: "2.3", titel: "Instrumente für die Erhebung der Gästezufriedenheit erstellen", tax: "K4",
+        lz: [
+          "Betriebliches Instrument zur Erfassung der Gästezufriedenheit analysieren und weiterentwickeln"
+        ]
+      }
+    ]
+  },
+  { id: 3, code: "HKB 3", color: "#5B8C5A",
+    titel: "Organisieren und Umsetzen von administrativen Arbeitsprozessen",
+    kompetenzen: [
+      { id: "3.1", titel: "Grundlagen, Daten und Zahlen für die Administration beschaffen", tax: "K3",
+        lz: [
+          "Allgemeine Geschäftsbedingungen und produktspezifische Verkaufs- und Stornierungsbedingungen anwenden",
+          "Daten und Informationen von Gästen, Partnern und Mitarbeitenden erfassen",
+          "Daten mit betrieblichen Softwareprogrammen (CRM, Hotelsoftware) bearbeiten",
+          "Datensicherung durchführen und Datenschutzvorschriften anwenden",
+          "Daten in geeigneter Form (Tabelle, Diagramm) bereitstellen",
+          "Büromaterial gemäss betrieblichen Vorgaben beschaffen"
+        ]
+      },
+      { id: "3.2", titel: "Interne und externe Korrespondenz erledigen", tax: "K4",
+        lz: [
+          "Anfragen zu Dienstleistungen und Produkten bearbeiten",
+          "Interne und externe Dokumente typographisch regelkonform und übersichtlich darstellen",
+          "Betriebliche Korrespondenz situations- und adressatengerecht verfassen",
+          "Sitzungen und interne Anlässe selbstständig organisieren und reibungslos durchführen",
+          "Brief- und Paketpost nach betrieblichen Vorgaben bearbeiten"
+        ]
+      },
+      { id: "3.3", titel: "Einfache Finanzbuchhaltung führen", tax: "K4",
+        lz: [
+          "Erbrachte Leistungen und Zahlungen im Betriebssystem erfassen",
+          "Kassenabschluss nach betrieblichen Vorgaben durchführen",
+          "Buchungsfehler beim Kassenabschluss aufdecken und Korrekturbuchungen durchführen",
+          "Mahnungen nach betrieblichen Vorgaben erstellen",
+          "Kreditorenrechnungen nach betrieblichen Vorgaben kontrollieren",
+          "Betriebseigene Angebote kalkulieren und Break-Even-Point berechnen"
+        ]
+      },
+      { id: "3.4", titel: "Bei der Administration der Mitarbeiterdossiers und bei Ein- und Austritten mitarbeiten", tax: "K3",
+        lz: [
+          "Im Betrieb übliche Kanäle zur Personalrekrutierung verwenden",
+          "Eintritte und Austritte von Mitarbeitenden nach betrieblichen und rechtlichen Vorgaben bearbeiten",
+          "Den ersten Arbeitstag für neue Mitarbeitende und Lernende gestalten",
+          "Wiederkehrende Aufgaben in der Mitarbeiteradministration ausführen"
+        ]
+      },
+      { id: "3.5", titel: "Betriebliche Statistiken führen, Betriebsprozesse überwachen", tax: "K4",
+        lz: [
+          "Kennzahlen aus dem Tagesabschluss beschreiben (Zimmerbelegung, Ø-Preis, RevPAR, Umsatz, Restaurantfrequenz)",
+          "Kennzahlen berechnen und Einflussmöglichkeiten analysieren",
+          "Massnahmen zur Verbesserung der Kennzahlen entwickeln"
+        ]
+      },
+      { id: "3.6", titel: "Einfache Texte in der zweiten Landessprache verfassen", tax: "K3",
+        lz: [
+          "Einfache Texte des Betriebsalltags in der zweiten Landessprache verfassen",
+          "Texte von der ersten in die zweite Landessprache übersetzen"
+        ]
+      },
+      { id: "3.7", titel: "Einfache Texte in Englisch verfassen", tax: "K3",
+        lz: [
+          "Einfache Texte des Betriebsalltags in Englisch verfassen",
+          "Texte von der ersten Landessprache in Englisch übersetzen"
+        ]
+      }
+    ]
+  },
+  { id: 4, code: "HKB 4", color: "#5B8C5A",
+    titel: "Sicherstellen der Nachhaltigkeit und der Qualitätsvorgaben",
+    kompetenzen: [
+      { id: "4.1", titel: "Lager nachhaltig bewirtschaften und Warenannahme durchführen", tax: "K3",
+        lz: [
+          "Lagerräumlichkeiten nach Vorgaben kontrollieren (Sauberkeit, Ordnung, Temperatur, MHD)",
+          "Warenannahme und -einlagerung nach betrieblichen Vorgaben durchführen",
+          "Lager nachhaltig nach gesetzlichen Vorgaben bewirtschaften (Food Waste, Bestandeskontrollen)"
+        ]
+      },
+      { id: "4.2", titel: "Die betriebliche Werterhaltung sicherstellen", tax: "K3",
+        lz: [
+          "Einfache Reinigungsarbeiten und Unterhaltsreinigungen in öffentlichen Bereichen durchführen und kontrollieren",
+          "Maschinen und Geräte im Hauswirtschaftsbereich fachgerecht bedienen",
+          "Arrivée-, Restant- und Départ-Zimmer nach betrieblichen Vorgaben bereitstellen",
+          "Fachgerechten, ökologisch sinnvollen Einsatz von Reinigungsmitteln erklären",
+          "HACCP-Grundsätze umsetzen und Auswirkungen von Hygienelücken analysieren"
+        ]
+      },
+      { id: "4.3", titel: "Grundsätze der Nachhaltigkeit in allen Abteilungen sicherstellen", tax: "K4",
+        lz: [
+          "Betriebliche Vorschriften zum Gesundheitsschutz umsetzen und Unfallprävention sicherstellen",
+          "Betriebliche Vorgaben zum Umweltschutz umsetzen und mit Standards vergleichen",
+          "Vorgaben zur Abfallentsorgung konsequent umsetzen",
+          "Betriebliche Brandschutzvorgaben umsetzen und Massnahmen bei Bränden beschreiben",
+          "Nachhaltigkeitsmassnahmen als Verkaufsargument verwenden"
+        ]
+      },
+      { id: "4.4", titel: "Betriebliche Werte und Normen umsetzen", tax: "K4",
+        lz: [
+          "Betriebliche Werte und Normen im Arbeitsalltag situationsgerecht umsetzen",
+          "Persönliche Einflussmöglichkeiten auf das Betriebsimage analysieren",
+          "Betriebliche Qualitätsstandards im Arbeitsalltag umsetzen",
+          "Massnahmen aus den Erkenntnissen der Qualitätssysteme ableiten"
+        ]
+      }
+    ]
+  }
+];
+
+// Alle LZ-Keys generieren
+const ALL_HK = BP.flatMap(h => h.kompetenzen);
+const ALL_LZ_KEYS = ALL_HK.flatMap(hk => hk.lz.map((_,i) => `${hk.id}.${i+1}`));
+
+// ════════════════════════════════════════════════════════════
+// APP STATE
+// ════════════════════════════════════════════════════════════
+let user = null;
+let currentLid = null;
+let S = {
+  lehrlinge: [],
+  lernberichte: [],
+  lzStatus: {},   // { lid: { "1.1.1": true } }
+  bewertungen: {}, // { lid: { fach:4, methode:3, ... } }
+  einstellungen: { apiKey: '', qvDatum: '2026-07-01' }
+};
+let kiHistory = [];
+
+// ════════════════════════════════════════════════════════════
+// FIREBASE HELPERS
+// ════════════════════════════════════════════════════════════
+const uid = () => user?.uid;
+
+async function fbGet(path) {
+  const snap = await getDoc(doc(db, path));
+  return snap.exists() ? snap.data() : null;
+}
+async function fbSet(path, data) {
+  await setDoc(doc(db, path), data, { merge: true });
+}
+async function fbCol(path) {
+  const snap = await getDocs(collection(db, path));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+async function fbAdd(path, data) {
+  const ref2 = await addDoc(collection(db, path), { ...data, _ts: serverTimestamp() });
+  return ref2.id;
+}
+async function fbDel(path) {
+  await deleteDoc(doc(db, path));
+}
+
+// ════════════════════════════════════════════════════════════
+// DATA LOAD / SAVE
+// ════════════════════════════════════════════════════════════
+async function loadAll() {
+  const [lehrlinge, berichte, lzSnap, bewSnap, einSnap] = await Promise.all([
+    fbCol(`users/${uid()}/lehrlinge`),
+    fbCol(`users/${uid()}/lernberichte`),
+    fbGet(`users/${uid()}/lzStatus/data`),
+    fbGet(`users/${uid()}/bewertungen/data`),
+    fbGet(`users/${uid()}/einstellungen/data`)
+  ]);
+  S.lehrlinge    = lehrlinge;
+  S.lernberichte = berichte;
+  S.lzStatus     = lzSnap  || {};
+  S.bewertungen  = bewSnap || {};
+  S.einstellungen = einSnap || { apiKey: '', qvDatum: '2026-07-01' };
+  if (!currentLid && lehrlinge.length) currentLid = lehrlinge[0].id;
+}
+
+async function saveLzStatus() {
+  await fbSet(`users/${uid()}/lzStatus/data`, S.lzStatus);
+}
+async function saveBewertungen() {
+  await fbSet(`users/${uid()}/bewertungen/data`, S.bewertungen);
+}
+async function saveEinstellungen() {
+  await fbSet(`users/${uid()}/einstellungen/data`, S.einstellungen);
+}
+
+// ════════════════════════════════════════════════════════════
+// HK STATUS BERECHNUNG
+// ════════════════════════════════════════════════════════════
+function calcHKStatus(lid) {
+  const lz = S.lzStatus[lid] || {};
+  const result = {};
+  ALL_HK.forEach(hk => {
+    const keys = hk.lz.map((_,i) => `${hk.id}.${i+1}`);
+    const done = keys.filter(k => lz[k]).length;
+    result[hk.id] = done === 0 ? 0 : done === keys.length ? 2 : 1;
+  });
+  return result;
+}
+
+function calcLZProgress(lid) {
+  const lz = S.lzStatus[lid] || {};
+  const done = ALL_LZ_KEYS.filter(k => lz[k]).length;
+  return { done, total: ALL_LZ_KEYS.length, pct: Math.round(done / ALL_LZ_KEYS.length * 100) };
+}
+
+// ════════════════════════════════════════════════════════════
+// AUTH STATE
+// ════════════════════════════════════════════════════════════
+onAuthStateChanged(auth, async (u) => {
+  user = u;
+  if (u) {
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('user-email').textContent = u.email;
+    showLoading(true);
+    await loadAll();
+    showLoading(false);
+    renderAll();
+  } else {
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+// UI HELPERS
+// ════════════════════════════════════════════════════════════
+function showLoading(show) {
+  document.getElementById('loading').style.display = show ? 'flex' : 'none';
+}
+
+function toast(msg, type = 'green') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderColor = type === 'green' ? 'var(--green)' : 'var(--red)';
+  t.style.color = type === 'green' ? 'var(--green-l)' : 'var(--red-l)';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function openModal(id) { document.getElementById('modal-' + id).classList.add('open'); }
+function closeModal(id) { document.getElementById('modal-' + id).classList.remove('open'); }
+
+function fmtDate(iso) {
+  if (!iso) return '–';
+  return new Date(iso).toLocaleDateString('de-CH', { day:'numeric', month:'long', year:'numeric' });
+}
+function fmtSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/1048576).toFixed(1) + ' MB';
+}
+function fileIcon(name = '') {
+  if (name.endsWith('.pdf')) return '📄';
+  if (/\.(jpg|jpeg|png|gif|webp)$/i.test(name)) return '🖼️';
+  if (/\.(doc|docx)$/i.test(name)) return '📝';
+  return '📎';
+}
+
+// ════════════════════════════════════════════════════════════
+// TAB NAVIGATION
+// ════════════════════════════════════════════════════════════
+function showTab(id, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('sec-' + id).classList.add('active');
+  el.classList.add('active');
+  if (id === 'db') renderDBStatus();
+}
+
+// ════════════════════════════════════════════════════════════
+// LEHRLING-LEISTE (wiederverwendbar)
+// ════════════════════════════════════════════════════════════
+function makeLB(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = S.lehrlinge.map(l => `
+    <div class="lp ${l.id === currentLid ? 'active' : ''}" onclick="selectL('${l.id}')">
+      <div class="lav" style="background:${l.color||'#444'}">${l.initials}</div>
+      <div>
+        <div style="font-size:12px;font-weight:500;">${l.vorname} ${l.nachname}</div>
+        <div style="font-size:10px;color:var(--dim);">${l.lj}. Lehrjahr</div>
+      </div>
+    </div>`).join('');
+}
+
+function selectL(lid) {
+  currentLid = lid;
+  renderAll();
+}
+
+// ════════════════════════════════════════════════════════════
+// ÜBERSICHT
+// ════════════════════════════════════════════════════════════
+function renderOverview() {
+  makeLB('ov-lb');
+  if (!currentLid) return;
+  const l = S.lehrlinge.find(x => x.id === currentLid);
+  if (!l) return;
+  const berichte = S.lernberichte.filter(b => b.lid === currentLid);
+  const vis = berichte.filter(b => b.status === 'visiert').length;
+  const hkSt = calcHKStatus(currentLid);
+  const hkDone = Object.values(hkSt).filter(v => v === 2).length;
+  const lzP = calcLZProgress(currentLid);
+  const days = Math.ceil((new Date('2026-07-01') - new Date()) / 86400000);
+
+  document.getElementById('ov-name').textContent = `${l.vorname} ${l.nachname}`;
+  document.getElementById('ov-detail').textContent = `${l.lj}. Lehrjahr · Start: ${l.start}`;
+
+  document.getElementById('ov-stats').innerHTML = `
+    <div class="stat-card" style="--accent:#C9A84C">
+      <div class="sc-num" style="color:#C9A84C">${l.lj}.</div>
+      <div class="sc-lbl">Lehrjahr</div>
+      <div class="sc-sub">Start ${l.start}</div>
+    </div>
+    <div class="stat-card" style="--accent:#5B8C5A">
+      <div class="sc-num" style="color:#7AB87A">${vis}/${berichte.length}</div>
+      <div class="sc-lbl">Lernberichte</div>
+      <div class="sc-sub">Visiert / Total</div>
+    </div>
+    <div class="stat-card" style="--accent:#3A6FA0">
+      <div class="sc-num" style="color:#5A8FC0">${lzP.pct}%</div>
+      <div class="sc-lbl">Leistungsziele</div>
+      <div class="sc-sub">${lzP.done}/${lzP.total} · ${hkDone}/21 HK ✓</div>
+    </div>
+    <div class="stat-card" style="--accent:#C9A84C">
+      <div class="sc-num" style="color:#C9A84C">${days}</div>
+      <div class="sc-lbl">Tage bis QV</div>
+      <div class="sc-sub">Juli 2026</div>
+    </div>`;
+
+  let ph = '';
+  BP.forEach(hkb => {
+    const ids = hkb.kompetenzen.map(k => k.id);
+    const d = ids.filter(id => hkSt[id] === 2).length;
+    const p = ids.filter(id => hkSt[id] === 1).length;
+    const pct = Math.round((d + p * .5) / ids.length * 100);
+    ph += `<div class="pw"><div class="prow"><span>${hkb.code}</span><span class="dim">${pct}%</span></div>
+      <div class="pbar"><div class="pfill" style="width:${pct}%;background:${hkb.color}"></div></div></div>`;
+  });
+  document.getElementById('ov-prog').innerHTML = ph;
+
+  let tasks = '';
+  const eingereicht = berichte.filter(b => b.status === 'eingereicht');
+  if (eingereicht.length) {
+    tasks += `<div class="task-row">📝 <div style="flex:1"><b>${eingereicht.length} Bericht(e)</b> warten auf Visum</div><span class="tag ty">Prüfen</span></div>`;
+  }
+  const offenLZ = lzP.total - lzP.done;
+  if (offenLZ > 0) {
+    tasks += `<div class="task-row">📚 <div style="flex:1"><b>${offenLZ} Leistungsziele</b> noch offen</div><span class="tag tb">Offen</span></div>`;
+  }
+  if (!tasks) tasks = '<div style="text-align:center;padding:18px;color:var(--green-l);font-size:13px;">✓ Keine offenen Aufgaben</div>';
+  document.getElementById('ov-tasks').innerHTML = tasks;
+}
+
+// ════════════════════════════════════════════════════════════
+// BILDUNGSPLAN MIT LZ-CHECKBOXEN
+// ════════════════════════════════════════════════════════════
+function renderBildungsplan() {
+  makeLB('bp-lb');
+  if (!currentLid) return;
+  const lid = currentLid;
+  const lz = S.lzStatus[lid] || {};
+  const lzP = calcLZProgress(lid);
+  const l = S.lehrlinge.find(x => x.id === lid);
+
+  document.getElementById('bp-sub').textContent =
+    l ? `${l.vorname} ${l.nachname} · ${lzP.done}/${lzP.total} Leistungsziele erledigt (${lzP.pct}%)` : '';
+  document.getElementById('bp-total-bar').style.width = lzP.pct + '%';
+  document.getElementById('bp-total-label').textContent = lzP.pct + '%';
+
+  let html = '';
+  BP.forEach(hkb => {
+    const hkbLZKeys = hkb.kompetenzen.flatMap((hk,_) => hk.lz.map((_,i) => `${hk.id}.${i+1}`));
+    const hkbDone = hkbLZKeys.filter(k => lz[k]).length;
+    const hkbPct = Math.round(hkbDone / hkbLZKeys.length * 100);
+
+    html += `<div class="hkb-block">
+      <div class="hkb-hd" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')" style="border-left:3px solid ${hkb.color}">
+        <span class="hkb-code" style="color:${hkb.color}">${hkb.code}</span>
+        <span class="hkb-t">${hkb.titel}</span>
+        <span class="hkb-pct">${hkbDone}/${hkbLZKeys.length}</span>
+        <span class="chev">▶</span>
+      </div>
+      <div class="hkb-body">`;
+
+    hkb.kompetenzen.forEach(hk => {
+      const lzKeys = hk.lz.map((_,i) => `${hk.id}.${i+1}`);
+      const done = lzKeys.filter(k => lz[k]).length;
+      const isDone = done === hk.lz.length;
+      const isPartial = done > 0 && !isDone;
+
+      html += `<div class="hk-row">
+        <div class="hk-status ${isDone?'done':isPartial?'partial':''}">${isDone?'✓':isPartial?'◐':''}</div>
+        <div class="hk-body">
+          <div class="hk-meta"><span class="hk-code">HK ${hk.id}</span><span class="hk-tax">${hk.tax}</span></div>
+          <div class="hk-t" onclick="toggleLZList('lzl-${hk.id.replace('.','_')}')">${hk.titel}</div>
+          <div class="hk-prog">${done}/${hk.lz.length} Leistungsziele · <span style="color:var(--dim);cursor:pointer;" onclick="toggleLZList('lzl-${hk.id.replace('.','_')}')">aufklappen ▾</span></div>
+          <div class="lz-list" id="lzl-${hk.id.replace('.','_')}">
+            ${hk.lz.map((txt,i) => {
+              const key = `${hk.id}.${i+1}`;
+              const checked = !!lz[key];
+              return `<div class="lz-row" onclick="toggleLZ('${lid}','${key}',this)">
+                <div class="lz-cb ${checked?'on':''}">${checked?'✓':''}</div>
+                <div class="lz-t ${checked?'done-txt':''}">${hk.id}.${i+1} ${txt}</div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+      </div>`;
+    });
+    html += `</div></div>`;
+  });
+  document.getElementById('bp-hkb').innerHTML = html;
+}
+
+function toggleLZList(id) {
+  document.getElementById(id)?.classList.toggle('open');
+}
+
+async function toggleLZ(lid, key, rowEl) {
+  if (!S.lzStatus[lid]) S.lzStatus[lid] = {};
+  const newVal = !S.lzStatus[lid][key];
+  S.lzStatus[lid][key] = newVal;
+
+  // Sofort UI updaten (kein Warten auf Firebase)
+  const cb = rowEl.querySelector('.lz-cb');
+  const txt = rowEl.querySelector('.lz-t');
+  cb.classList.toggle('on', newVal);
+  cb.textContent = newVal ? '✓' : '';
+  txt.classList.toggle('done-txt', newVal);
+
+  // HK-Status in der Zeile updaten
+  const hkId = key.split('.').slice(0,2).join('.');
+  const hk = ALL_HK.find(h => h.id === hkId);
+  if (hk) {
+    const lzKeys = hk.lz.map((_,i) => `${hkId}.${i+1}`);
+    const done = lzKeys.filter(k => S.lzStatus[lid]?.[k]).length;
+    const hkRow = rowEl.closest('.hk-row');
+    const stat = hkRow?.querySelector('.hk-status');
+    const prog = hkRow?.querySelector('.hk-prog');
+    if (stat) {
+      const isDone = done === hk.lz.length, isP = done > 0 && !isDone;
+      stat.className = `hk-status ${isDone?'done':isP?'partial':''}`;
+      stat.textContent = isDone ? '✓' : isP ? '◐' : '';
+    }
+    if (prog) {
+      const suf = prog.innerHTML.split('·').slice(1).join('·');
+      prog.innerHTML = `${done}/${hk.lz.length} Leistungsziele ·${suf}`;
+    }
+  }
+
+  // Gesamt-Progressbar updaten
+  const lzP = calcLZProgress(lid);
+  document.getElementById('bp-total-bar').style.width = lzP.pct + '%';
+  document.getElementById('bp-total-label').textContent = lzP.pct + '%';
+  const sub = document.getElementById('bp-sub');
+  const l = S.lehrlinge.find(x => x.id === lid);
+  if (sub && l) sub.textContent = `${l.vorname} ${l.nachname} · ${lzP.done}/${lzP.total} Leistungsziele erledigt (${lzP.pct}%)`;
+
+  // Firebase speichern
+  await saveLzStatus();
+}
+
+// ════════════════════════════════════════════════════════════
+// LERNBERICHTE
+// ════════════════════════════════════════════════════════════
+function renderLernberichte() {
+  makeLB('lb-lb');
+  if (!currentLid) return;
+  const berichte = S.lernberichte.filter(b => b.lid === currentLid);
+
+  let html = '<div class="b-semester-grid">';
+  for (let sem = 1; sem <= 6; sem++) {
+    const semB = berichte.filter(b => b.sem == sem);
+    html += `<div class="b-sem"><div class="b-sem-label">Semester ${sem}</div>`;
+    for (let n = 0; n < Math.max(2, semB.length + 1); n++) {
+      const b = semB[n];
+      if (b) {
+        const icons = { visiert:'✅', eingereicht:'📄', offen:'○' };
+        html += `<div class="b-card ${b.status}" onclick="showBerichtDetail('${b.id}')">
+          <div class="b-card-icon">${icons[b.status]||'○'}</div>
+          <div class="b-card-t">${b.thema?.substring(0,30)||'–'}${b.thema?.length>30?'…':''}</div>
+          <div class="b-card-hk">${b.hk?'HK '+b.hk:''}</div>
+        </div>`;
+      } else {
+        html += `<div class="b-card empty" onclick="openNewBericht(${sem})">+ Neu</div>`;
+      }
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  document.getElementById('b-grid').innerHTML = html;
+}
+
+function openNewBericht(sem) {
+  document.getElementById('nb-sem').value = sem || '';
+  document.getElementById('nb-lid').value = currentLid || '';
+  openModal('bericht');
+}
+
+function showBerichtDetail(bid) {
+  const b = S.lernberichte.find(x => x.id === bid);
+  if (!b) return;
+  const att = b.attachments || [];
+  const statusCls = { visiert:'tg', eingereicht:'ty', offen:'tb' };
+
+  document.getElementById('bd-content').innerHTML = `
+    <div class="bd-header">
+      <div>
+        <div class="bd-title">${b.thema || '(kein Titel)'}</div>
+        <div class="bd-meta">Semester ${b.sem} · ${b.hk?'HK '+b.hk:''} · ${fmtDate(b.datum)}</div>
+      </div>
+      <span class="tag ${statusCls[b.status]||'tb'}">${b.status==='visiert'?'✅ Visiert':b.status==='eingereicht'?'📄 Eingereicht':'○ Offen'}</span>
+    </div>
+
+    ${b.pos?`<div class="bd-section"><div class="bd-sec-label">Positiv aufgefallen</div><div class="bd-sec-body ok">${b.pos}</div></div>`:''}
+    ${b.verb?`<div class="bd-section"><div class="bd-sec-label">Verbesserungsmöglichkeiten</div><div class="bd-sec-body warn">${b.verb}</div></div>`:''}
+
+    ${b.status === 'eingereicht' ? `
+    <div class="bd-section">
+      <div class="bd-sec-label" style="color:var(--gold)">✍️ Jetzt visieren</div>
+      <textarea class="fi" id="fb-pos" placeholder="Positiv aufgefallen..." style="margin-bottom:8px;"></textarea>
+      <textarea class="fi" id="fb-verb" placeholder="Verbesserungsmöglichkeiten..."></textarea>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="btn btn-gold" onclick="visiereBericht('${bid}')">✓ Visieren</button>
+        <button class="btn btn-out btn-sm" onclick="loescheBericht('${bid}')">Löschen</button>
+      </div>
+    </div>` : `<div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn btn-out btn-sm" onclick="loescheBericht('${bid}')">🗑 Löschen</button>
+    </div>`}
+
+    <div class="divider"></div>
+    <div class="bd-sec-label">📎 Anhänge (${att.length})</div>
+    ${att.length ? `<div class="att-list">${att.map(a=>`
+      <div class="att-item">
+        <span>${fileIcon(a.name)}</span>
+        <a href="${a.url}" target="_blank" class="att-name">${a.name}</a>
+        <span class="dim" style="font-size:10px;">${fmtSize(a.size||0)}</span>
+        <button class="btn btn-out btn-sm" onclick="deleteAttachment('${bid}','${a.name}','${a.url}')">✕</button>
+      </div>`).join('')}</div>` : '<div class="dim" style="font-size:12px;margin:8px 0;">Noch keine Anhänge</div>'}
+    <div class="att-zone" onclick="document.getElementById('att-file').click()"
+      ondragover="event.preventDefault();this.classList.add('drag')"
+      ondragleave="this.classList.remove('drag')"
+      ondrop="dropFiles(event,'${bid}')">
+      ☁️ PDF oder Bild ablegen / klicken
+    </div>
+    <input type="file" id="att-file" multiple accept=".pdf,image/*" style="display:none" onchange="uploadAtt(event,'${bid}')">
+  `;
+  document.getElementById('b-detail-panel').style.display = 'block';
+}
+
+async function saveBericht() {
+  const lid = document.getElementById('nb-lid').value;
+  const thema = document.getElementById('nb-thema').value.trim();
+  if (!thema) { toast('Bitte Thema eingeben', 'red'); return; }
+  const data = {
+    lid, sem: parseInt(document.getElementById('nb-sem').value),
+    thema, hk: document.getElementById('nb-hk').value,
+    status: document.getElementById('nb-status').value,
+    pos: document.getElementById('nb-pos').value,
+    verb: document.getElementById('nb-verb').value,
+    datum: new Date().toISOString().slice(0,10),
+    attachments: []
+  };
+  showLoading(true);
+  const id = await fbAdd(`users/${uid()}/lernberichte`, data);
+  S.lernberichte.push({ id, ...data });
+  showLoading(false);
+  closeModal('bericht');
+  toast('✓ Bericht gespeichert');
+  renderLernberichte();
+  document.getElementById('nb-thema').value = '';
+  document.getElementById('nb-pos').value = '';
+  document.getElementById('nb-verb').value = '';
+}
+
+async function visiereBericht(bid) {
+  const pos = document.getElementById('fb-pos')?.value || '';
+  const verb = document.getElementById('fb-verb')?.value || '';
+  await updateDoc(doc(db, `users/${uid()}/lernberichte/${bid}`), { status:'visiert', pos, verb });
+  const b = S.lernberichte.find(x => x.id === bid);
+  if (b) { b.status = 'visiert'; b.pos = pos; b.verb = verb; }
+  toast('✓ Bericht visiert');
+  renderLernberichte();
+  showBerichtDetail(bid);
+}
+
+async function loescheBericht(bid) {
+  if (!confirm('Bericht löschen?')) return;
+  await fbDel(`users/${uid()}/lernberichte/${bid}`);
+  S.lernberichte = S.lernberichte.filter(x => x.id !== bid);
+  document.getElementById('b-detail-panel').style.display = 'none';
+  toast('Bericht gelöscht');
+  renderLernberichte();
+}
+
+// Upload
+async function uploadAtt(event, bid) {
+  const files = Array.from(event.target.files);
+  await doUpload(files, bid);
+}
+async function dropFiles(event, bid) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('drag');
+  await doUpload(Array.from(event.dataTransfer.files), bid);
+}
+
+async function doUpload(files, bid) {
+  if (!files.length) return;
+  showLoading(true);
+  const b = S.lernberichte.find(x => x.id === bid);
+  if (!b) { showLoading(false); return; }
+  if (!b.attachments) b.attachments = [];
+  for (const file of files) {
+    const storRef = ref(stor, `users/${uid()}/${bid}/${Date.now()}_${file.name}`);
+    await uploadBytes(storRef, file);
+    const url = await getDownloadURL(storRef);
+    b.attachments.push({ name: file.name, url, size: file.size, path: storRef.fullPath });
+  }
+  await updateDoc(doc(db, `users/${uid()}/lernberichte/${bid}`), { attachments: b.attachments });
+  showLoading(false);
+  toast(`✓ ${files.length} Datei(en) hochgeladen`);
+  showBerichtDetail(bid);
+}
+
+async function deleteAttachment(bid, name, url) {
+  if (!confirm(`"${name}" löschen?`)) return;
+  const b = S.lernberichte.find(x => x.id === bid);
+  if (!b) return;
+  const att = b.attachments.find(a => a.name === name);
+  if (att?.path) { try { await deleteObject(ref(stor, att.path)); } catch(e) {} }
+  b.attachments = b.attachments.filter(a => a.name !== name);
+  await updateDoc(doc(db, `users/${uid()}/lernberichte/${bid}`), { attachments: b.attachments });
+  toast('Anhang gelöscht');
+  showBerichtDetail(bid);
+}
+
+// ════════════════════════════════════════════════════════════
+// BILDUNGSBERICHT
+// ════════════════════════════════════════════════════════════
+const BB_DIM = [
+  { k:'fach',    label:'Fachkompetenz',    desc:'Berufsspezifisches Wissen und Können' },
+  { k:'methode', label:'Methodenkompetenz',desc:'Planung, Arbeitstechniken, Prozessdenken' },
+  { k:'sozial',  label:'Sozialkompetenz',  desc:'Kommunikation, Team, Konflikt' },
+  { k:'selbst',  label:'Selbstkompetenz',  desc:'Eigenverantwortung, Reflexion, Zuverlässigkeit' }
+];
+const STAR_LABELS = ['','Ungenügend','Schwach','Ausreichend','Gut','Sehr gut','Ausgezeichnet'];
+
+function renderBildungsbericht() {
+  makeLB('bb-lb');
+  const bew = S.bewertungen[currentLid] || {};
+  document.getElementById('bb-ratings').innerHTML = BB_DIM.map(d => `
+    <div class="rating-row">
+      <div>
+        <div style="font-size:13px;">${d.label}</div>
+        <div class="dim" style="font-size:11px;">${d.desc}</div>
+      </div>
+      <div>
+        <div class="stars" id="s-${d.k}">
+          ${[1,2,3,4,5,6].map(n=>`<div class="star ${(bew[d.k]||0)>=n?'on':''}" onclick="setStar('${d.k}',${n})"></div>`).join('')}
+        </div>
+        <div class="dim" style="font-size:10px;text-align:right;margin-top:2px;" id="sl-${d.k}">${STAR_LABELS[bew[d.k]||0]}</div>
+      </div>
+    </div>`).join('');
+  document.getElementById('bb-bem').value = bew.bem || '';
+}
+
+function setStar(key, n) {
+  if (!S.bewertungen[currentLid]) S.bewertungen[currentLid] = {};
+  S.bewertungen[currentLid][key] = n;
+  document.getElementById('s-'+key).querySelectorAll('.star').forEach((s,i) => s.classList.toggle('on', i<n));
+  document.getElementById('sl-'+key).textContent = STAR_LABELS[n];
+}
+
+async function generateBB() {
+  if (!currentLid) return;
+  S.bewertungen[currentLid] = S.bewertungen[currentLid] || {};
+  S.bewertungen[currentLid].bem = document.getElementById('bb-bem').value;
+  await saveBewertungen();
+  const l = S.lehrlinge.find(x => x.id === currentLid);
+  const bew = S.bewertungen[currentLid];
+  const lzP = calcLZProgress(currentLid);
+  const hkSt = calcHKStatus(currentLid);
+  const hkDone = Object.values(hkSt).filter(v=>v===2).length;
+  const vis = S.lernberichte.filter(b=>b.lid===currentLid&&b.status==='visiert').length;
+
+  document.getElementById('bb-preview').innerHTML = `
+    <div class="bb-prev-inner">
+      <div class="bb-prev-title">Bildungsbericht</div>
+      <div class="bb-prev-subtitle">Hotel-Kommunikationsfachfrau/-mann EFZ · ${new Date().toLocaleDateString('de-CH')}</div>
+      <div class="divider"></div>
+      <div class="bb-prev-section">
+        <div class="bb-prev-h">Lernende/r</div>
+        <div>${l?.vorname} ${l?.nachname} · ${l?.lj}. Lehrjahr · Start: ${l?.start}</div>
+      </div>
+      <div class="bb-prev-section">
+        <div class="bb-prev-h">Beurteilung Kompetenzdimensionen</div>
+        ${BB_DIM.map(d=>`
+        <div class="bb-prev-row">
+          <span>${d.label}</span>
+          <span style="display:flex;gap:3px;align-items:center;">
+            ${[1,2,3,4,5,6].map(n=>`<div style="width:11px;height:11px;border-radius:2px;background:${(bew[d.k]||0)>=n?'#C9A84C':'#3D3530'}"></div>`).join('')}
+            <span style="margin-left:6px;font-size:12px;">${STAR_LABELS[bew[d.k]||0]} (${bew[d.k]||0}/6)</span>
+          </span>
+        </div>`).join('')}
+      </div>
+      <div class="bb-prev-section">
+        <div class="bb-prev-h">Lernfortschritt</div>
+        <div>Abgeschlossene Handlungskompetenzen: ${hkDone}/21</div>
+        <div>Leistungsziele erledigt: ${lzP.done}/${lzP.total} (${lzP.pct}%)</div>
+        <div>Visierte Lernberichte: ${vis}</div>
+      </div>
+      ${bew.bem?`<div class="bb-prev-section"><div class="bb-prev-h">Bemerkungen</div><div>${bew.bem}</div></div>`:''}
+      <div class="divider" style="margin-top:24px;"></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--dim);">
+        <span>Berufsbildner/in: ______________________</span>
+        <span>${new Date().toLocaleDateString('de-CH')}</span>
+      </div>
+      <div style="font-size:10px;color:var(--dim);margin-top:6px;">Bildungsplan Hotel-KoFa EFZ · Hotel & Gastro formation · Berufsnummer 79200</div>
+    </div>`;
+  toast('✓ Bildungsbericht erstellt');
+}
+
+// ════════════════════════════════════════════════════════════
+// QV VORBEREITUNG
+// ════════════════════════════════════════════════════════════
+function renderQV() {
+  makeLB('qv-lb');
+  if (!currentLid) return;
+  document.getElementById('qv-days').textContent = Math.max(0, Math.ceil((new Date('2026-07-01')-new Date())/86400000));
+  const hkSt = calcHKStatus(currentLid);
+  const lzP = calcLZProgress(currentLid);
+
+  let html = '';
+  BP.forEach(hkb => {
+    const ids = hkb.kompetenzen.map(k=>k.id);
+    const done = ids.filter(id=>hkSt[id]===2).length;
+    const pct = done/ids.length;
+    const aClass = pct>=.8?'g':pct>=.5?'y':'r';
+    const aLabel = pct>=.8?'Bereit':'pct'>=.5?'Üben':'Dringend';
+
+    html += `<div class="qv-block" style="border-left:3px solid ${hkb.color}">
+      <div class="qv-hkb-row">
+        <div class="amp ${aClass}"></div>
+        <div style="flex:1;">
+          <div style="font-size:12px;font-weight:600;">${hkb.code}: ${hkb.titel}</div>
+          <div class="dim" style="font-size:11px;">${done}/${ids.length} Handlungskompetenzen abgeschlossen</div>
+        </div>
+        <span class="tag ${aClass==='g'?'tg':aClass==='y'?'ty':'tr'}">${done}/${ids.length} HK</span>
+      </div>
+      ${hkb.kompetenzen.map(hk => {
+        const s = hkSt[hk.id]||0;
+        const ac = s===2?'g':s===1?'y':'r';
+        return `<div class="qv-hk-row">
+          <div class="amp ${ac}" style="width:8px;height:8px;"></div>
+          <span class="dim" style="font-size:11px;flex:1;">HK ${hk.id}: ${hk.titel}</span>
+          <span class="tag ${ac==='g'?'tg':ac==='y'?'ty':'tr'}">${ac==='g'?'✓':ac==='y'?'Teil.':'Offen'}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  });
+  document.getElementById('qv-status').innerHTML = html;
+
+  document.getElementById('qv-overall-pct').textContent = lzP.pct + '%';
+  document.getElementById('qv-overall-bar').style.width = lzP.pct + '%';
+}
+
+// ════════════════════════════════════════════════════════════
+// EINSATZPLAN
+// ════════════════════════════════════════════════════════════
+let weekOff = 0;
+const WDAYS = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
+const ABTS = [
+  {k:'empfang',l:'Empfang',cls:'ae'},
+  {k:'reservierung',l:'Reservierung',cls:'ar'},
+  {k:'kommunikation',l:'Kommunikation',cls:'ak'},
+  {k:'service',l:'Service/F&B',cls:'as'},
+  {k:'housekeeping',l:'Housekeeping',cls:'ah'},
+  {k:'schule',l:'Schule/ÜK',cls:'af'},
+  {k:'frei',l:'Frei',cls:'af'}
+];
+const DEMO_EINS = {
+  l1: ['empfang','empfang','reservierung','reservierung','frei'],
+  l2: ['kommunikation','kommunikation','empfang','frei','empfang'],
+  l3: ['service','housekeeping','service','empfang','schule']
+};
+
+function getKW(d) {
+  const t = new Date(d); t.setHours(0,0,0,0); t.setDate(t.getDate()+3-(t.getDay()+6)%7);
+  const w1 = new Date(t.getFullYear(),0,4);
+  return 1 + Math.round(((t-w1)/86400000-3+(w1.getDay()+6)%7)/7);
+}
+
+function changeWeek(n) { weekOff = n===0?0:weekOff+n; renderEinsatz(); }
+
+function renderEinsatz() {
+  const now = new Date();
+  const mon = new Date(now); mon.setDate(now.getDate() - (now.getDay()||7) + 1 + weekOff*7);
+  const fri = new Date(mon.getTime() + 4*86400000);
+  document.getElementById('kw-label').textContent =
+    `KW ${getKW(mon)} · ${mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'})} – ${fri.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit',year:'numeric'})}`;
+
+  // Grid
+  const cols = S.lehrlinge.length || 1;
+  let grid = `<div class="ep-grid" style="grid-template-columns:100px repeat(${cols},1fr)">`;
+  grid += '<div class="ep-h"></div>' + S.lehrlinge.map(l=>`<div class="ep-h">${l.vorname}</div>`).join('');
+  WDAYS.forEach((day,di) => {
+    const d = new Date(mon.getTime()+di*86400000);
+    grid += `<div class="ep-day">${day}<br><span class="dim" style="font-size:10px;">${d.toLocaleDateString('de-CH',{day:'numeric',month:'numeric'})}</span></div>`;
+    S.lehrlinge.forEach(l => {
+      const abtKey = DEMO_EINS[l.id]?.[di] || 'frei';
+      const abt = ABTS.find(a=>a.k===abtKey)||ABTS[ABTS.length-1];
+      grid += `<div class="ep-cell ${abt.cls}">${abt.l}</div>`;
+    });
+  });
+  grid += '</div>';
+  document.getElementById('ep-grid').innerHTML = grid;
+}
+
+// ════════════════════════════════════════════════════════════
+// KI ASSISTENT
+// ════════════════════════════════════════════════════════════
+const KI_SYSTEM = `Du bist ein erfahrener Berufsbildungsexperte für Hotel-Kommunikationsfachfrau/-mann EFZ (Berufsnummer 79200). Du kennst den Bildungsplan von Hotel & Gastro formation (2017) mit allen 4 HKBs, 21 Handlungskompetenzen (HK 1.1–4.4) und allen Leistungszielen (K1–K6 nach Bloom). Das Qualifikationsverfahren besteht aus CPEX (3 Situationen) und PEX (Fachgespräch) sowie Berufskenntnisse. Antworte praxisnah auf Deutsch für Berufsbildner/innen in Hotelbetrieben. Sei konkret und hilfreich.`;
+
+async function saveApiKey() {
+  const key = document.getElementById('ki-key').value.trim();
+  S.einstellungen.apiKey = key;
+  await saveEinstellungen();
+  document.getElementById('ki-status').innerHTML = key.startsWith('sk-ant-')
+    ? '<span style="color:var(--green-l)">✓ Gespeichert</span>'
+    : '<span style="color:var(--yellow)">⚠ Kein gültiger Key</span>';
+}
+
+function qAsk(txt) { document.getElementById('ki-in').value = txt; kiSend(); }
+
+async function kiSend() {
+  const el = document.getElementById('ki-in');
+  const text = el.value.trim();
+  if (!text) return;
+  const key = S.einstellungen.apiKey || document.getElementById('ki-key').value.trim();
+  if (!key.startsWith('sk-ant-')) {
+    addMsg('assistant','⚠️ Bitte gib zuerst deinen Anthropic API-Key ein.');
+    return;
+  }
+  addMsg('user', text);
+  el.value = '';
+  el.style.height = 'auto';
+  kiHistory.push({ role:'user', content:text });
+  const tid = 'ki-' + Date.now();
+  addMsg('assistant', '<span class="ki-thinking">●●●</span>', tid);
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1500, system:KI_SYSTEM, messages:kiHistory })
+    });
+    const d = await r.json();
+    const reply = d.content?.[0]?.text || d.error?.message || 'Keine Antwort';
+    kiHistory.push({ role:'assistant', content:reply });
+    document.getElementById(tid)?.remove();
+    addMsg('assistant', reply.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/`([^`]+)`/g,'<code>$1</code>'));
+  } catch(e) {
+    document.getElementById(tid)?.remove();
+    addMsg('assistant','❌ ' + e.message);
+  }
+}
+
+function addMsg(role, html, id) {
+  const msgs = document.getElementById('ki-msgs');
+  const div = document.createElement('div');
+  div.className = 'ki-msg ' + role;
+  div.innerHTML = html;
+  if (id) div.id = id;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function kiKey(e) { if (e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); kiSend(); } }
+function kiResize(el) { el.style.height='auto'; el.style.height = Math.min(el.scrollHeight,120)+'px'; }
+
+// ════════════════════════════════════════════════════════════
+// DATENBANK / EINSTELLUNGEN
+// ════════════════════════════════════════════════════════════
+function renderDBStatus() {
+  // Lehrlinge management list
+  const dbL = document.getElementById('db-lehrlinge');
+  if (dbL) {
+    dbL.innerHTML = S.lehrlinge.length === 0
+      ? '<div class="dim" style="font-size:12px;text-align:center;padding:12px;">Noch keine Lernenden erfasst.</div>'
+      : S.lehrlinge.map(l => `
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
+          <div class="lav" style="background:${l.color||'#444'}">${l.initials}</div>
+          <div style="flex:1;font-size:12px;">${l.vorname} ${l.nachname}<div class="dim" style="font-size:10px;">${l.lj}. Lehrjahr · Start ${l.start}</div></div>
+          <button class="btn btn-out btn-sm" onclick="deleteLehrling('${l.id}')">🗑</button>
+        </div>`).join('');
+  }
+
+  const lzP = S.lehrlinge.reduce((acc, l) => {
+    const p = calcLZProgress(l.id);
+    return { done: acc.done+p.done, total: acc.total+p.total };
+  }, { done:0, total:0 });
+  document.getElementById('db-status').innerHTML = `
+    <div class="stat-row">Lehrlinge<span style="color:var(--gold)">${S.lehrlinge.length}</span></div>
+    <div class="stat-row">Lernberichte<span style="color:var(--gold)">${S.lernberichte.length}</span></div>
+    <div class="stat-row">Visierte Berichte<span style="color:var(--gold)">${S.lernberichte.filter(b=>b.status==='visiert').length}</span></div>
+    <div class="stat-row">LZ erledigt (gesamt)<span style="color:var(--gold)">${lzP.done}/${lzP.total}</span></div>
+    <div class="stat-row">Anhänge<span style="color:var(--gold)">${S.lernberichte.reduce((s,b)=>s+(b.attachments?.length||0),0)} Dateien</span></div>
+    <div class="stat-row">Datenbank<span class="tag tb">Firebase Firestore</span></div>`;
+}
+
+async function exportBackup() {
+  const backup = {
+    version: 2,
+    exportDatum: new Date().toISOString(),
+    lehrlinge: S.lehrlinge,
+    lernberichte: S.lernberichte,
+    lzStatus: S.lzStatus,
+    bewertungen: S.bewertungen
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `kofa_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+
+async function importBackup(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (!confirm(`Import: ${data.lehrlinge?.length||0} Lehrlinge, ${data.lernberichte?.length||0} Berichte. Weiter?`)) return;
+    showLoading(true);
+    if (data.lzStatus) { S.lzStatus = data.lzStatus; await saveLzStatus(); }
+    if (data.bewertungen) { S.bewertungen = data.bewertungen; await saveBewertungen(); }
+    if (data.lehrlinge) for (const l of data.lehrlinge) await fbSet(`users/${uid()}/lehrlinge/${l.id}`, l);
+    if (data.lernberichte) for (const b of data.lernberichte) await fbSet(`users/${uid()}/lernberichte/${b.id}`, b);
+    await loadAll();
+    showLoading(false);
+    renderAll();
+    toast('✓ Import erfolgreich');
+  } catch(err) {
+    showLoading(false);
+    toast('Fehler beim Import: ' + err.message, 'red');
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// LEHRLINGE VERWALTEN
+// ════════════════════════════════════════════════════════════
+async function addLehrling() {
+  const vn = document.getElementById('nl-vn').value.trim();
+  const nn = document.getElementById('nl-nn').value.trim();
+  if (!vn || !nn) { toast('Vor- und Nachname eingeben', 'red'); return; }
+  const colors = ['#C9A84C','#3A6FA0','#5B8C5A','#9B5E8C','#C8675A'];
+  const color = colors[S.lehrlinge.length % colors.length];
+  const data = {
+    vorname: vn, nachname: nn,
+    lj: parseInt(document.getElementById('nl-lj').value),
+    start: document.getElementById('nl-start').value,
+    initials: (vn[0]+(nn[0]||'')).toUpperCase(),
+    color
+  };
+  showLoading(true);
+  const id = await fbAdd(`users/${uid()}/lehrlinge`, data);
+  S.lehrlinge.push({ id, ...data });
+  currentLid = id;
+  showLoading(false);
+  closeModal('lehrling');
+  toast('✓ Lehrling hinzugefügt');
+  renderAll();
+  fillDropdowns();
+}
+
+async function deleteLehrling(lid) {
+  if (!confirm('Lehrling und alle Daten löschen?')) return;
+  showLoading(true);
+  await fbDel(`users/${uid()}/lehrlinge/${lid}`);
+  S.lehrlinge = S.lehrlinge.filter(x=>x.id!==lid);
+  if (currentLid===lid) currentLid = S.lehrlinge[0]?.id || null;
+  showLoading(false);
+  renderAll();
+  toast('Lehrling gelöscht');
+}
+
+// ════════════════════════════════════════════════════════════
+// DROPDOWNS FÜLLEN
+// ════════════════════════════════════════════════════════════
+function fillDropdowns() {
+  const lSel = document.getElementById('nb-lid');
+  if (lSel) lSel.innerHTML = S.lehrlinge.map(l=>`<option value="${l.id}">${l.vorname} ${l.nachname}</option>`).join('');
+  if (currentLid && lSel) lSel.value = currentLid;
+  const hkSel = document.getElementById('nb-hk');
+  if (hkSel) hkSel.innerHTML = '<option value="">— Keine Angabe —</option>' +
+    ALL_HK.map(hk=>`<option value="${hk.id}">HK ${hk.id}: ${hk.titel.substring(0,50)}…</option>`).join('');
+}
+
+// ════════════════════════════════════════════════════════════
+// AUTH UI
+// ════════════════════════════════════════════════════════════
+async function login() {
+  const email = document.getElementById('auth-email').value.trim();
+  const pw = document.getElementById('auth-pw').value;
+  const err = document.getElementById('auth-err');
+  err.textContent = '';
+  try {
+    await signInWithEmailAndPassword(auth, email, pw);
+  } catch(e) {
+    err.textContent = e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential'
+      ? 'E-Mail oder Passwort falsch.'
+      : e.message;
+  }
+}
+
+async function register() {
+  const email = document.getElementById('auth-email').value.trim();
+  const pw = document.getElementById('auth-pw').value;
+  const err = document.getElementById('auth-err');
+  err.textContent = '';
+  if (pw.length < 6) { err.textContent = 'Passwort mind. 6 Zeichen.'; return; }
+  try {
+    await createUserWithEmailAndPassword(auth, email, pw);
+  } catch(e) {
+    err.textContent = e.code === 'auth/email-already-in-use'
+      ? 'E-Mail bereits registriert. Bitte einloggen.'
+      : e.message;
+  }
+}
+
+async function logout() {
+  await signOut(auth);
+  kiHistory = [];
+  S = { lehrlinge:[], lernberichte:[], lzStatus:{}, bewertungen:{}, einstellungen:{} };
+}
+
+// ════════════════════════════════════════════════════════════
+// RENDER ALL
+// ════════════════════════════════════════════════════════════
+function renderAll() {
+  fillDropdowns();
+  renderOverview();
+  renderBildungsplan();
+  renderLernberichte();
+  renderBildungsbericht();
+  renderQV();
+  renderEinsatz();
+  // KI API Key anzeigen
+  const keyEl = document.getElementById('ki-key');
+  if (keyEl && S.einstellungen.apiKey) keyEl.value = S.einstellungen.apiKey;
+}
+
+// Datum-Badge
+document.getElementById('today-badge').textContent =
+  new Date().toLocaleDateString('de-CH',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+
+// Enter-Taste im Auth-Formular
+document.getElementById('auth-pw').addEventListener('keydown', e => { if(e.key==='Enter') login(); });
+
+// Modal: Klick ausserhalb schliessen
+document.querySelectorAll('.modal-overlay').forEach(o =>
+  o.addEventListener('click', e => { if(e.target===o) o.classList.remove('open'); })
+);
+</script>
+
+<style>
+/* ════════════ VARIABLES ════════════ */
+:root{
+  --bg:#131210; --bg2:#1C1916; --bg3:#252118; --card:#1E1B17;
+  --border:#2E2A24; --border2:#3A3530;
+  --cream:#F2E8D0; --dim:#9A8E78;
+  --gold:#C9A84C; --gold-l:#E8D080;
+  --green:#5B8C5A; --green-l:#7EC07E;
+  --red:#9B3A30; --red-l:#D06050;
+  --blue:#2E5A8C; --blue-l:#5A90C8;
+  --yellow:#B89020;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--cream);min-height:100vh;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 40% at 20% 0%,rgba(201,168,76,.05),transparent),radial-gradient(ellipse 60% 60% at 90% 100%,rgba(58,111,160,.04),transparent);pointer-events:none;z-index:0;}
+code{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:11px;font-family:monospace;}
+a{color:var(--blue-l);text-decoration:none;}
+a:hover{text-decoration:underline;}
+/* ════════════ LOADING ════════════ */
+#loading{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;display:none;}
+.spinner{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* ════════════ AUTH ════════════ */
+#auth-screen{position:fixed;inset:0;background:var(--bg);z-index:500;display:flex;align-items:center;justify-content:center;}
+.auth-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px;max-width:380px;width:93%;}
+.auth-logo{font-family:'DM Serif Display',serif;font-size:22px;margin-bottom:4px;text-align:center;}
+.auth-sub{font-size:11px;color:var(--dim);text-align:center;margin-bottom:28px;}
+.auth-err{font-size:12px;color:var(--red-l);margin-top:10px;min-height:18px;}
+.auth-footer{text-align:center;font-size:11px;color:var(--dim);margin-top:20px;}
+/* ════════════ HEADER ════════════ */
+header{position:sticky;top:0;z-index:100;background:rgba(19,18,16,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 20px;height:56px;display:flex;align-items:center;gap:12px;}
+.logo{display:flex;align-items:center;gap:10px;}
+.logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--gold),var(--gold-l));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;}
+.logo-name{font-family:'DM Serif Display',serif;font-size:16px;}
+.logo-sub{font-size:10px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase;}
+.hflex{flex:1;}
+.user-info{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:8px;}
+/* ════════════ NAV ════════════ */
+nav{position:sticky;top:56px;z-index:99;background:var(--bg2);border-bottom:1px solid var(--border);padding:0 20px;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;}
+nav::-webkit-scrollbar{display:none;}
+.tab{padding:11px 13px;font-size:12px;font-weight:500;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;}
+.tab:hover{color:var(--cream);}
+.tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+/* ════════════ MAIN ════════════ */
+main{max-width:1280px;margin:0 auto;padding:20px;position:relative;z-index:1;}
+.section{display:none;}
+.section.active{display:block;animation:fadeIn .25s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.page-title{font-family:'DM Serif Display',serif;font-size:24px;margin-bottom:3px;}
+.page-sub{font-size:12px;color:var(--dim);margin-bottom:20px;}
+/* ════════════ GRID ════════════ */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+@media(max-width:900px){.g4{grid-template-columns:1fr 1fr;}.g3{grid-template-columns:1fr 1fr;}}
+@media(max-width:600px){.g2,.g3,.g4{grid-template-columns:1fr;}}
+/* ════════════ CARDS ════════════ */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;}
+.card-t{font-family:'DM Serif Display',serif;font-size:15px;margin-bottom:2px;}
+.card-s{font-size:11px;color:var(--dim);margin-bottom:14px;}
+/* ════════════ LEHRLING BAR ════════════ */
+.lb{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
+.lp{display:flex;align-items:center;gap:9px;padding:8px 14px;border-radius:40px;border:1px solid var(--border);background:var(--card);cursor:pointer;transition:all .2s;}
+.lp:hover{border-color:var(--gold);}
+.lp.active{background:var(--gold);border-color:var(--gold);color:var(--bg);}
+.lp.active .dim{color:rgba(0,0,0,.6);}
+.lav{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--bg);flex-shrink:0;}
+/* ════════════ STAT CARDS ════════════ */
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;position:relative;overflow:hidden;}
+.stat-card::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent,#C9A84C);}
+.sc-num{font-family:'DM Serif Display',serif;font-size:36px;line-height:1;margin-bottom:4px;}
+.sc-lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;}
+.sc-sub{font-size:11px;color:var(--dim);margin-top:6px;}
+/* ════════════ PROGRESS ════════════ */
+.pw{margin-bottom:10px;}
+.prow{display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;}
+.pbar{height:5px;background:var(--border2);border-radius:3px;overflow:hidden;}
+.pfill{height:100%;border-radius:3px;transition:width .6s ease;}
+/* ════════════ TAGS ════════════ */
+.tag{display:inline-block;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:500;}
+.tg{background:rgba(91,140,90,.2);color:var(--green-l);}
+.ty{background:rgba(185,146,32,.2);color:#E0B840;}
+.tr{background:rgba(155,58,48,.2);color:var(--red-l);}
+.tb{background:rgba(46,90,140,.2);color:var(--blue-l);}
+/* ════════════ TASK ROWS ════════════ */
+.task-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);margin-bottom:7px;font-size:12px;background:var(--bg2);}
+/* ════════════ BUTTONS ════════════ */
+.btn{padding:8px 16px;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:all .2s;display:inline-flex;align-items:center;gap:5px;}
+.btn-gold{background:var(--gold);color:var(--bg);}
+.btn-gold:hover{background:var(--gold-l);}
+.btn-out{background:transparent;border:1px solid var(--border);color:var(--dim);}
+.btn-out:hover{border-color:var(--gold);color:var(--cream);}
+.btn-red{background:transparent;border:1px solid var(--red);color:var(--red-l);}
+.btn-sm{padding:4px 10px;font-size:11px;}
+/* ════════════ FORMS ════════════ */
+label.fl{display:block;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-top:12px;margin-bottom:4px;}
+.fi{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-family:'DM Sans',sans-serif;font-size:12px;padding:9px 12px;outline:none;transition:border-color .2s;}
+.fi:focus{border-color:var(--gold);}
+textarea.fi{min-height:64px;resize:vertical;}
+/* ════════════ DIVIDER ════════════ */
+.divider{height:1px;background:var(--border);margin:16px 0;}
+/* ════════════ MODAL ════════════ */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:26px;max-width:500px;width:93%;max-height:90vh;overflow-y:auto;}
+.modal-t{font-family:'DM Serif Display',serif;font-size:20px;margin-bottom:16px;}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;}
+/* ════════════ BILDUNGSPLAN ════════════ */
+.hkb-block{margin-bottom:8px;}
+.hkb-hd{display:flex;align-items:center;gap:10px;padding:11px 14px;background:rgba(201,168,76,.04);border:1px solid rgba(201,168,76,.15);border-radius:10px;cursor:pointer;transition:all .2s;user-select:none;}
+.hkb-hd:hover{background:rgba(201,168,76,.08);}
+.hkb-hd.open + .hkb-body{display:block;}
+.hkb-hd .chev{font-size:10px;color:var(--dim);transition:transform .2s;margin-left:auto;}
+.hkb-hd.open .chev{transform:rotate(90deg);}
+.hkb-code{font-family:'DM Serif Display',serif;font-size:18px;}
+.hkb-t{font-size:12px;font-weight:500;flex:1;}
+.hkb-pct{font-size:11px;color:var(--dim);}
+.hkb-body{display:none;margin-left:14px;margin-top:4px;margin-bottom:6px;}
+.hk-row{display:flex;align-items:flex-start;gap:9px;padding:9px;border-radius:8px;border:1px solid transparent;margin-bottom:3px;transition:background .15s;}
+.hk-row:hover{background:rgba(255,255,255,.02);}
+.hk-status{width:20px;height:20px;border-radius:5px;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;margin-top:2px;transition:all .2s;}
+.hk-status.done{background:var(--green);border-color:var(--green);color:white;}
+.hk-status.partial{background:rgba(201,168,76,.2);border-color:var(--gold);color:var(--gold);}
+.hk-body{flex:1;}
+.hk-meta{display:flex;gap:6px;align-items:center;margin-bottom:2px;}
+.hk-code{font-size:10px;color:var(--gold);font-weight:700;}
+.hk-tax{font-size:10px;color:var(--dim);background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;}
+.hk-t{font-size:12px;cursor:pointer;}
+.hk-t:hover{color:var(--gold);}
+.hk-prog{font-size:10px;color:var(--dim);margin-top:3px;}
+.lz-list{display:none;margin-top:8px;border-left:2px solid var(--border);padding-left:12px;}
+.lz-list.open{display:block;}
+.lz-row{display:flex;align-items:flex-start;gap:8px;padding:5px 6px;border-radius:6px;cursor:pointer;transition:background .1s;margin-bottom:2px;}
+.lz-row:hover{background:rgba(255,255,255,.03);}
+.lz-cb{width:15px;height:15px;border-radius:3px;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;margin-top:1px;transition:all .15s;color:white;}
+.lz-cb.on{background:var(--green);border-color:var(--green);}
+.lz-t{font-size:11px;color:var(--dim);line-height:1.45;}
+.lz-t:hover{color:var(--cream);}
+.lz-t.done-txt{text-decoration:line-through;opacity:.55;}
+/* ════════════ LERNBERICHTE ════════════ */
+.b-semester-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;}
+@media(max-width:800px){.b-semester-grid{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:500px){.b-semester-grid{grid-template-columns:1fr 1fr;}}
+.b-sem{display:flex;flex-direction:column;gap:5px;}
+.b-sem-label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;padding:4px 0;font-weight:500;}
+.b-card{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:10px;cursor:pointer;transition:all .2s;min-height:72px;}
+.b-card:hover{border-color:var(--gold);}
+.b-card.visiert{background:rgba(91,140,90,.15);border-color:rgba(122,192,122,.4);}
+.b-card.eingereicht{background:rgba(185,146,32,.1);border-color:rgba(185,146,32,.3);}
+.b-card.empty{display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:12px;border-style:dashed;}
+.b-card-icon{font-size:16px;margin-bottom:4px;}
+.b-card-t{font-size:11px;line-height:1.3;}
+.b-card-hk{font-size:10px;color:var(--gold);margin-top:3px;}
+/* Bericht Detail */
+#b-detail-panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;margin-top:14px;display:none;}
+.bd-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;}
+.bd-title{font-family:'DM Serif Display',serif;font-size:17px;margin-bottom:3px;}
+.bd-meta{font-size:11px;color:var(--dim);}
+.bd-section{margin-bottom:12px;}
+.bd-sec-label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;}
+.bd-sec-body{font-size:12px;padding:10px;border-radius:8px;line-height:1.5;}
+.bd-sec-body.ok{background:rgba(91,140,90,.12);border:1px solid rgba(91,140,90,.25);}
+.bd-sec-body.warn{background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.2);}
+/* Attachments */
+.att-list{display:flex;flex-direction:column;gap:5px;margin:8px 0;}
+.att-item{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg);border:1px solid var(--border);border-radius:7px;font-size:12px;}
+.att-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.att-zone{border:2px dashed var(--border);border-radius:9px;padding:16px;text-align:center;cursor:pointer;transition:all .2s;margin-top:10px;font-size:12px;color:var(--dim);}
+.att-zone:hover,.att-zone.drag{border-color:var(--gold);background:rgba(201,168,76,.04);color:var(--cream);}
+/* ════════════ BILDUNGSBERICHT ════════════ */
+.rating-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);}
+.stars{display:flex;gap:3px;}
+.star{width:15px;height:15px;border-radius:3px;background:var(--border2);cursor:pointer;transition:background .1s;}
+.star.on{background:var(--gold);}
+.bb-prev-inner{font-size:12px;line-height:1.6;}
+.bb-prev-title{font-family:'DM Serif Display',serif;font-size:20px;}
+.bb-prev-subtitle{font-size:11px;color:var(--dim);margin-bottom:8px;}
+.bb-prev-section{margin:12px 0;}
+.bb-prev-h{font-size:10px;color:var(--gold);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;font-weight:600;}
+.bb-prev-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+/* ════════════ QV ════════════ */
+.qv-block{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;}
+.qv-hkb-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.qv-hk-row{display:flex;align-items:center;gap:8px;padding:5px 8px;font-size:11px;}
+.amp{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.amp.g{background:var(--green-l);box-shadow:0 0 5px var(--green-l);}
+.amp.y{background:#E0B840;box-shadow:0 0 5px #E0B840;}
+.amp.r{background:var(--red-l);box-shadow:0 0 5px var(--red-l);}
+.qv-sit{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:11px;margin-bottom:6px;}
+.qv-sit-label{font-size:10px;color:var(--gold);font-weight:600;margin-bottom:3px;}
+/* ════════════ EINSATZPLAN ════════════ */
+.ep-grid{display:grid;gap:3px;font-size:11px;}
+.ep-h{font-size:10px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.04em;padding:6px;text-align:center;}
+.ep-day{padding:7px;font-size:11px;color:var(--dim);display:flex;flex-direction:column;justify-content:center;}
+.ep-cell{padding:8px 4px;border-radius:6px;font-size:10px;font-weight:500;text-align:center;border:1px solid transparent;}
+.ae{background:rgba(46,90,140,.2);border-color:rgba(90,143,192,.3);color:var(--blue-l);}
+.ar{background:rgba(185,146,32,.15);border-color:rgba(185,146,32,.25);color:#E0C040;}
+.ak{background:rgba(91,140,90,.2);border-color:rgba(122,192,122,.3);color:var(--green-l);}
+.as{background:rgba(140,70,120,.2);border-color:rgba(180,110,160,.3);color:#D090C0;}
+.ah{background:rgba(160,120,60,.2);border-color:rgba(190,150,90,.3);color:#D0A060;}
+.af{background:rgba(255,255,255,.03);color:var(--dim);font-style:italic;}
+/* ════════════ KI ════════════ */
+.ki-wrap{display:flex;flex-direction:column;height:calc(100vh - 280px);min-height:400px;}
+.ki-top{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);background:rgba(201,168,76,.03);}
+.ki-qb-row{padding:8px 14px;border-bottom:1px solid var(--border);display:flex;gap:6px;flex-wrap:wrap;}
+.ki-msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.ki-in-row{padding:12px 14px;border-top:1px solid var(--border);display:flex;gap:8px;}
+.ki-ta{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--cream);font-family:'DM Sans',sans-serif;font-size:13px;padding:9px 13px;outline:none;resize:none;height:42px;transition:border-color .2s;}
+.ki-ta:focus{border-color:var(--gold);}
+.ki-msg{max-width:84%;padding:11px 15px;border-radius:12px;font-size:13px;line-height:1.55;}
+.ki-msg.user{background:var(--gold);color:var(--bg);align-self:flex-end;border-radius:12px 12px 3px 12px;}
+.ki-msg.assistant{background:var(--bg2);border:1px solid var(--border);align-self:flex-start;border-radius:12px 12px 12px 3px;}
+.ki-qb{padding:5px 11px;border-radius:20px;border:1px solid var(--border);background:var(--bg);color:var(--dim);font-size:11px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.ki-qb:hover{border-color:var(--gold);color:var(--gold);}
+.ki-thinking{display:inline-flex;gap:3px;animation:thinking 1s infinite;}
+@keyframes thinking{0%,100%{opacity:.3}50%{opacity:1}}
+/* ════════════ DB ════════════ */
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:12px;}
+/* ════════════ TOAST ════════════ */
+#toast{position:fixed;bottom:24px;right:24px;background:var(--bg2);border:1px solid var(--green);border-radius:10px;padding:11px 18px;font-size:13px;z-index:999;opacity:0;transform:translateY(8px);transition:all .3s;pointer-events:none;}
+#toast.show{opacity:1;transform:translateY(0);}
+/* ════════════ SCROLLBAR ════════════ */
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:var(--bg2);}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+</style>
 </head>
 <body>
-<header>
-  <div>
-    <b>Lehrlings-Cockpit</b> <span class="muted">Firebase + GitHub Pages</span>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div style="font-size:13px;color:var(--dim);">Laden…</div>
+</div>
+
+<div id="toast"></div>
+
+<!-- AUTH SCREEN -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <div style="text-align:center;font-size:28px;margin-bottom:12px;">🏨</div>
+    <div class="auth-logo">Ausbildungs-Cockpit</div>
+    <div class="auth-sub">Hotel-Kommunikationsfachfrau/-mann EFZ</div>
+    <label class="fl">E-Mail</label>
+    <input class="fi" type="email" id="auth-email" placeholder="berufsbildner@hotel.ch" autocomplete="email">
+    <label class="fl">Passwort</label>
+    <input class="fi" type="password" id="auth-pw" placeholder="Passwort">
+    <div class="auth-err" id="auth-err"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button class="btn btn-gold" style="flex:1;" onclick="login()">Einloggen</button>
+      <button class="btn btn-out" style="flex:1;" onclick="register()">Registrieren</button>
+    </div>
+    <div class="auth-footer">Daten werden sicher in Firebase gespeichert.</div>
   </div>
-  <div class="right">
-    <div id="userInfo" class="muted"></div>
-    <button id="logoutBtn" class="secondary hidden">Logout</button>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🏨</div>
+    <div>
+      <div class="logo-name">Ausbildungs-Cockpit</div>
+      <div class="logo-sub">Hotel-KoFa EFZ</div>
+    </div>
+  </div>
+  <div class="hflex"></div>
+  <div style="font-size:11px;color:var(--dim);background:var(--bg2);border:1px solid var(--border);padding:4px 10px;border-radius:20px;" id="today-badge"></div>
+  <div class="user-info">
+    <span id="user-email"></span>
+    <button class="btn btn-out btn-sm" onclick="logout()">Abmelden</button>
   </div>
 </header>
 
+<nav>
+  <div class="tab active" onclick="showTab('overview',this)">📊 Übersicht</div>
+  <div class="tab" onclick="showTab('bildungsplan',this)">📚 Bildungsplan</div>
+  <div class="tab" onclick="showTab('lernberichte',this)">📝 Lernberichte</div>
+  <div class="tab" onclick="showTab('bildungsbericht',this)">📋 Bildungsbericht</div>
+  <div class="tab" onclick="showTab('qv',this)">🎯 QV-Vorbereitung</div>
+  <div class="tab" onclick="showTab('einsatzplan',this)">📅 Einsatzplan</div>
+  <div class="tab" onclick="showTab('ki',this)">🤖 KI-Assistent</div>
+  <div class="tab" onclick="showTab('db',this)">💾 Datenbank</div>
+</nav>
+
 <main>
 
-  <div id="loginCard" class="card">
-    <h3>Login</h3>
-    <div class="row">
-      <div>
-        <button id="googleBtn">Mit Google einloggen</button>
-        <div class="muted small" style="margin-top:6px">Tipp: Google ist am einfachsten. Microsoft kann später ergänzt werden.</div>
-      </div>
-      <div>
-        <button id="msBtn" class="secondary">Mit Microsoft einloggen (optional)</button>
-        <div class="muted small" style="margin-top:6px">Aktiviert nur, wenn Microsoft Provider im Firebase Projekt konfiguriert ist.</div>
-      </div>
+<!-- ─── ÜBERSICHT ─── -->
+<div class="section active" id="sec-overview">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+    <div>
+      <div class="page-title" id="ov-name">Willkommen</div>
+      <div style="font-size:12px;color:var(--dim);" id="ov-detail">Wähle eine/n Lernende/n</div>
     </div>
-    <div id="loginMsg" class="muted" style="margin-top:10px"></div>
-
-    <hr style="border:none;border-top:1px solid #eef0f5;margin:14px 0">
-
-    <h4>Ersteinrichtung (Admin)</h4>
-    <div class="muted small">
-      Nach dem ersten Login musst du deinem Benutzer eine Rolle geben. Nutze dafür unten "Mich als Admin setzen".
-      (Danach kannst du andere Benutzer auf admin/trainer/readonly setzen.)
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-out" onclick="openModal('lehrling')">+ Lehrling</button>
+      <button class="btn btn-gold" onclick="openNewBericht()">+ Lernbericht</button>
     </div>
-    <div class="row" style="margin-top:10px">
-      <div><button id="makeMeAdminBtn" class="danger">Mich als Admin setzen</button></div>
-      <div class="muted small" style="align-self:center">Nur beim ersten Mal nötig.</div>
-    </div>
-    <div id="adminMsg" class="muted" style="margin-top:8px"></div>
   </div>
-
-  <div id="app" class="hidden">
+  <div class="lb" id="ov-lb"></div>
+  <div class="g4" style="margin-bottom:14px;" id="ov-stats"></div>
+  <div class="g2">
     <div class="card">
-      <div class="nav">
-        <button class="secondary" data-page="dashboard">Dashboard</button>
-        <button class="secondary" data-page="learners">Lernende</button>
-        <button class="secondary" data-page="reports">Lernberichte</button>
-        <button class="secondary" data-page="qv">QV</button>
-        <button class="secondary" data-page="schedule">Einsatzplanung</button>
-        <button class="secondary" data-page="admin">Admin</button>
-      </div>
-      <div class="muted small" style="margin-top:8px">Rolle: <span id="roleLabel" class="pill"></span></div>
+      <div class="card-t">Fortschritt HKB</div>
+      <div class="card-s" id="ov-sub">Handlungskompetenzbereich-Übersicht</div>
+      <div id="ov-prog"></div>
     </div>
-
-    <!-- Dashboard -->
-    <div id="page-dashboard" class="card">
-      <h3>Dashboard (HOKO)</h3>
-      <div id="dashboardBox" class="muted">Lade…</div>
+    <div class="card">
+      <div class="card-t">Pendente Aufgaben</div>
+      <div class="card-s">Offene Aktionen</div>
+      <div id="ov-tasks"></div>
     </div>
-
-    <!-- Learners -->
-    <div id="page-learners" class="card hidden">
-      <h3>Lernende</h3>
-      <div class="row">
-        <div><button id="refreshLearnersBtn" class="secondary">Aktualisieren</button></div>
-        <div><button id="seedDefaultsBtn" class="secondary">Standarddaten anlegen (3 HOKO + 1 Koch + Reports + QV)</button></div>
-      </div>
-
-      <div id="learnersBox" style="margin-top:10px"></div>
-
-      <h4 style="margin-top:16px">Neue Lernende</h4>
-      <div class="row">
-        <div><input id="ln_no" placeholder="Lernende_ID (z.B. 1)" /></div>
-        <div><input id="ln_name" placeholder="Name" /></div>
-        <div>
-          <select id="ln_prof">
-            <option value="HOKO">HOKO</option>
-            <option value="Koch EFZ (verkürzt, nach EBA)">Koch EFZ (verkürzt, nach EBA)</option>
-          </select>
-        </div>
-        <div><input id="ln_year" placeholder="Lehrjahr (1-3)" /></div>
-        <div><input id="ln_work" placeholder="Pensum (%)" /></div>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <div><input id="ln_trainer" placeholder="Berufsbildner/in (optional)" /></div>
-        <div><input id="ln_start" placeholder="Startdatum (YYYY-MM-DD, optional)" /></div>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <div><textarea id="ln_notes" placeholder="Notizen (optional)"></textarea></div>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <div><button id="addLearnerBtn">Speichern</button></div>
-      </div>
-      <div id="learnerMsg" class="muted" style="margin-top:8px"></div>
-    </div>
-
-    <!-- Reports -->
-    <div id="page-reports" class="card hidden">
-      <h3>Lernberichte (HOKO)</h3>
-      <div class="row">
-        <div>
-          <label class="small muted">Lernende wählen</label>
-          <select id="repLearnerSelect"></select>
-        </div>
-        <div>
-          <label class="small muted">Status Filter</label>
-          <select id="repStatusFilter">
-            <option value="">Alle</option>
-            <option>Offen</option>
-            <option>Zugeteilt</option>
-            <option>Eingereicht</option>
-            <option>Abgehakt</option>
-          </select>
-        </div>
-        <div style="align-self:end"><button id="loadReportsBtn" class="secondary">Laden</button></div>
-      </div>
-
-      <div id="reportsBox" style="margin-top:10px"></div>
-    </div>
-
-    <!-- QV -->
-    <div id="page-qv" class="card hidden">
-      <h3>QV Tasks (HOKO)</h3>
-      <div class="row">
-        <div>
-          <label class="small muted">Lernende wählen</label>
-          <select id="qvLearnerSelect"></select>
-        </div>
-        <div style="align-self:end"><button id="loadQvBtn" class="secondary">Laden</button></div>
-      </div>
-      <div id="qvBox" style="margin-top:10px"></div>
-    </div>
-
-    <!-- Schedule -->
-    <div id="page-schedule" class="card hidden">
-      <h3>Einsatzplanung</h3>
-      <div class="row">
-        <div><input id="kwInput" placeholder="KW (z.B. 12)" /></div>
-        <div><button id="loadScheduleBtn" class="secondary">Laden</button></div>
-      </div>
-
-      <div id="scheduleBox" style="margin-top:10px"></div>
-
-      <h4 style="margin-top:14px">Neuer Eintrag</h4>
-      <div class="row">
-        <div>
-          <label class="small muted">Lernende</label>
-          <select id="schLearnerSelect"></select>
-        </div>
-        <div><input id="schDept" placeholder="Abteilung (z.B. Réception)" /></div>
-        <div><input id="schShift" placeholder="Schicht (z.B. Früh)" /></div>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <div><input id="schFrom" placeholder="Von (YYYY-MM-DD, optional)" /></div>
-        <div><input id="schTo" placeholder="Bis (YYYY-MM-DD, optional)" /></div>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <div><input id="schFocus" placeholder="Fokus (z.B. HKB 1 / HK 1.4)" /></div>
-        <div><input id="schComment" placeholder="Kommentar (optional)" /></div>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <div><button id="addScheduleBtn">Speichern</button></div>
-      </div>
-      <div id="scheduleMsg" class="muted" style="margin-top:8px"></div>
-    </div>
-
-    <!-- Admin -->
-    <div id="page-admin" class="card hidden">
-      <h3>Admin</h3>
-      <div class="muted small">Hier kannst du Benutzerrollen setzen. Du brauchst dafür admin-Rechte.</div>
-      <div class="row" style="margin-top:10px">
-        <div><input id="setRoleUid" placeholder="UID (Benutzer-ID)" /></div>
-        <div>
-          <select id="setRoleValue">
-            <option value="admin">admin</option>
-            <option value="trainer">trainer</option>
-            <option value="readonly">readonly</option>
-          </select>
-        </div>
-        <div><button id="setRoleBtn" class="danger">Rolle setzen</button></div>
-      </div>
-      <div class="muted small" style="margin-top:8px">
-        UID findest du, indem sich die Person einmal einloggt und dir die UID aus der Browser-Konsole oder aus dem user-doc zeigt (wir zeigen sie unten an).
-      </div>
-      <div id="adminPanelBox" style="margin-top:10px"></div>
-    </div>
-
   </div>
-</main>
+</div>
 
-<script type="module">
-  // Firebase SDK (CDN, modular)
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-  import {
-    getAuth, onAuthStateChanged, GoogleAuthProvider, OAuthProvider,
-    signInWithPopup, signOut
-  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-  import {
-    getFirestore, doc, getDoc, setDoc, updateDoc,
-    collection, addDoc, getDocs, query, where, orderBy, limit
-  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+<!-- ─── BILDUNGSPLAN ─── -->
+<div class="section" id="sec-bildungsplan">
+  <div class="page-title">Bildungsplan</div>
+  <div class="page-sub">21 Handlungskompetenzen · Leistungsziele einzeln abhakbar · HK-Status wird automatisch berechnet</div>
+  <div class="lb" id="bp-lb"></div>
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-t">Gesamtfortschritt Leistungsziele</div>
+    <div class="card-s" id="bp-sub">—</div>
+    <div class="pbar" style="height:8px;">
+      <div class="pfill" id="bp-total-bar" style="width:0%;background:var(--gold)"></div>
+    </div>
+    <div style="font-size:11px;color:var(--dim);margin-top:4px;text-align:right;" id="bp-total-label">0%</div>
+  </div>
+  <div class="card">
+    <div class="card-t">Handlungskompetenzen</div>
+    <div class="card-s">Klicke auf einen HKB zum Aufklappen · Leistungsziele einzeln abhaken</div>
+    <div id="bp-hkb"></div>
+  </div>
+</div>
 
-  // ========= 1) HIER firebaseConfig einsetzen =========
-const firebaseConfig = {
-  apiKey: "AIzaSyDiuNW9oZ-wSuGp5EZfLn_hBfK3W5iuHYo",
-  authDomain: "ausbildungs-cockpit.firebaseapp.com",
-  projectId: "ausbildungs-cockpit",
-  storageBucket: "ausbildungs-cockpit.firebasestorage.app",
-  messagingSenderId: "286858503649",
-  appId: "1:286858503649:web:b6fd5c221cb36b75a2dea0"
-};
-  // ====================================================
+<!-- ─── LERNBERICHTE ─── -->
+<div class="section" id="sec-lernberichte">
+  <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">
+    <div>
+      <div class="page-title">Lernberichte</div>
+      <div class="page-sub">Min. 2 Berichte pro Semester · Anhänge (PDF/Bilder) direkt hochladbar</div>
+    </div>
+    <button class="btn btn-gold" onclick="openNewBericht()">+ Neu</button>
+  </div>
+  <div class="lb" id="lb-lb"></div>
+  <div class="card">
+    <div id="b-grid"></div>
+    <div style="display:flex;gap:16px;margin-top:12px;flex-wrap:wrap;">
+      <span style="font-size:11px;color:var(--dim);display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--green-l);display:inline-block;"></span>Visiert</span>
+      <span style="font-size:11px;color:var(--dim);display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#E0B840;display:inline-block;"></span>Eingereicht</span>
+      <span style="font-size:11px;color:var(--dim);display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--border2);display:inline-block;"></span>Offen</span>
+    </div>
+  </div>
+  <div id="b-detail-panel"></div>
+</div>
 
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-
-  // UI helpers
-  const $ = (id) => document.getElementById(id);
-  const show = (id, yes) => $(id).classList.toggle("hidden", !yes);
-  const setText = (id, txt) => $(id).textContent = txt || "";
-  const pages = ["dashboard","learners","reports","qv","schedule","admin"];
-  function showPage(name){
-    for(const p of pages) show("page-"+p, p===name);
-  }
-
-  // State
-  let currentUser = null;
-  let myRole = null;
-  let learnersCache = [];
-
-  function ampel(openReports, openQv){
-    const sum = (openReports||0) + (openQv||0);
-    if(sum >= 3) return "🔴";
-    if(sum >= 1) return "🟡";
-    return "🟢";
-  }
-
-  async function getMyUserDoc(uid){
-    const ref = doc(db, "users", uid);
-    const snap = await getDoc(ref);
-    return { ref, snap };
-  }
-
-  async function ensureUserDoc(uid, email){
-    const { ref, snap } = await getMyUserDoc(uid);
-    if(!snap.exists()){
-      await setDoc(ref, { email, role: "readonly" });
-    }
-    const snap2 = await getDoc(ref);
-    return snap2.data();
-  }
-
-  async function refreshRoleUI(){
-    if(!currentUser){ myRole=null; return; }
-    const data = await ensureUserDoc(currentUser.uid, currentUser.email);
-    myRole = data.role || "readonly";
-    setText("roleLabel", myRole);
-    setText("userInfo", `${currentUser.email} (${myRole})`);
-    $("logoutBtn").classList.remove("hidden");
-  }
-
-  async function loadLearners(){
-    const qy = query(collection(db, "learners"), orderBy("learnerNo", "asc"));
-    const snap = await getDocs(qy);
-    learnersCache = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-    renderLearners();
-    fillLearnerSelects();
-  }
-
-  function renderLearners(){
-    const box = $("learnersBox");
-    if(!learnersCache.length){
-      box.innerHTML = `<div class="muted">Keine Lernenden erfasst.</div>`;
-      return;
-    }
-    box.innerHTML = `
-      <table>
-        <thead><tr><th>ID</th><th>Name</th><th>Beruf</th><th>Lehrjahr</th><th>Pensum</th></tr></thead>
-        <tbody>
-          ${learnersCache.map(l=>`
-            <tr>
-              <td><span class="pill">${l.learnerNo}</span></td>
-              <td>${escapeHtml(l.name)}</td>
-              <td>${escapeHtml(l.profession)}</td>
-              <td>${l.year ?? ""}</td>
-              <td>${l.workloadPct ?? ""}</td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-    `;
-  }
-
-  function fillLearnerSelects(){
-    const opts = learnersCache.map(l => `<option value="${l.id}">${l.learnerNo} – ${escapeHtml(l.name)} (${escapeHtml(l.profession)})</option>`).join("");
-    $("repLearnerSelect").innerHTML = `<option value="">– wählen –</option>` + opts;
-    $("qvLearnerSelect").innerHTML = `<option value="">– wählen –</option>` + opts;
-    $("schLearnerSelect").innerHTML = `<option value="">– wählen –</option>` + opts;
-  }
-
-  async function loadDashboard(){
-    // Dashboard: für HOKO je Lernende offene Reports + offene QV
-    const hokoLearners = learnersCache.filter(l => l.profession === "HOKO");
-    if(!hokoLearners.length){
-      $("dashboardBox").innerHTML = `<div class="muted">Noch keine HOKO Lernenden erfasst.</div>`;
-      return;
-    }
-
-    const rows = [];
-    for(const l of hokoLearners){
-      const repQ = query(collection(db, "learningReports"),
-        where("learnerId","==", l.id),
-        where("status","!=", "Abgehakt")
-      );
-      // Firestore hat Einschränkungen bei != + orderBy; wir machen simpel: alle Reports holen (kleine Datenmenge)
-      const repAll = await getDocs(query(collection(db,"learningReports"), where("learnerId","==", l.id)));
-      const openReports = repAll.docs.map(d=>d.data()).filter(x=>x.status !== "Abgehakt").length;
-
-      const qvAll = await getDocs(query(collection(db,"qvTasks"), where("learnerId","==", l.id)));
-      const openQv = qvAll.docs.map(d=>d.data()).filter(x=>!x.doneAt).length;
-
-      rows.push({ learnerNo:l.learnerNo, name:l.name, openReports, openQv });
-    }
-
-    $("dashboardBox").innerHTML = `
-      <table>
-        <thead><tr><th>Lernende</th><th>Offene Lernberichte</th><th>Offene QV-Tasks</th><th>Ampel</th></tr></thead>
-        <tbody>
-          ${rows.map(r=>`
-            <tr>
-              <td><b>${r.learnerNo}</b> – ${escapeHtml(r.name)}</td>
-              <td>${r.openReports}</td>
-              <td>${r.openQv}</td>
-              <td class="ampel">${ampel(r.openReports, r.openQv)}</td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-    `;
-  }
-
-  async function addLearner(){
-    if(!canWrite()){
-      setText("learnerMsg", "Keine Berechtigung (readonly).");
-      return;
-    }
-    const learnerNo = Number($("ln_no").value.trim());
-    const name = $("ln_name").value.trim();
-    const profession = $("ln_prof").value;
-    const year = $("ln_year").value.trim() ? Number($("ln_year").value.trim()) : null;
-    const workloadPct = $("ln_work").value.trim() ? Number($("ln_work").value.trim()) : null;
-    const trainerName = $("ln_trainer").value.trim() || null;
-    const startDate = $("ln_start").value.trim() || null;
-    const notes = $("ln_notes").value.trim() || null;
-
-    if(!learnerNo || !name){
-      setText("learnerMsg", "Bitte Lernende_ID und Name ausfüllen.");
-      return;
-    }
-
-    await addDoc(collection(db,"learners"), {
-      learnerNo, name, profession,
-      year, workloadPct, trainerName, startDate, notes,
-      active: true,
-      createdAt: new Date().toISOString()
-    });
-
-    setText("learnerMsg", "Gespeichert.");
-    await loadLearners();
-    await loadDashboard();
-  }
-
-  function canWrite(){
-    return myRole === "admin" || myRole === "trainer";
-  }
-  function isAdmin(){
-    return myRole === "admin";
-  }
-
-  async function seedDefaults(){
-    if(!canWrite()){
-      alert("Keine Berechtigung (readonly).");
-      return;
-    }
-
-    // 3 HOKO + 1 Koch
-    const defaults = [
-      { learnerNo:1, name:"HOKO Lernende 1", profession:"HOKO", year:1, workloadPct:100 },
-      { learnerNo:2, name:"HOKO Lernende 2", profession:"HOKO", year:2, workloadPct:100 },
-      { learnerNo:3, name:"HOKO Lernende 3", profession:"HOKO", year:3, workloadPct:100 },
-      { learnerNo:4, name:"Koch Lernende 1", profession:"Koch EFZ (verkürzt, nach EBA)", year:1, workloadPct:100 }
-    ];
-
-    // existing learners check by learnerNo (small data => fetch all)
-    await loadLearners();
-    const existingNos = new Set(learnersCache.map(l=>l.learnerNo));
-
-    // Create missing learners
-    const createdMap = new Map(); // learnerNo -> docId
-    for(const d of defaults){
-      if(existingNos.has(d.learnerNo)) continue;
-      const ref = await addDoc(collection(db,"learners"), { ...d, createdAt:new Date().toISOString(), active:true });
-      createdMap.set(d.learnerNo, ref.id);
-    }
-
-    // reload to get ids
-    await loadLearners();
-
-    // Seed reports + qv for HOKO learners
-    const reportDefaults = [
-      [1, "Empathisch kommunizieren", 1],
-      [2, "Nachhaltig denken (Hauswirtschaft)", 2],
-      [3, "Gästeorientiert verpflegen (Küche)", 3],
-      [4, "Gästeorientiert verpflegen (Restaurant)", 4],
-      [5, "Nachhaltig denken (Réception)", 5],
-      [6, "Empathisch kommunizieren", 6],
-      [7, "Empathisch kommunizieren", 6],
-      [8, "Empathisch kommunizieren", 6],
-      [9, "Strukturiert organisieren & empathisch kommunizieren", 6],
-      [10, "Mein Blick zurück", 6]
-    ];
-
-    const qvDefaults = [
-      ["VPA", "Simulation 1 (Teilprüfung)", "3 Monate vor QV"],
-      ["VPA", "Simulation 2 (komplett)", "6–8 Wochen vor QV"],
-      ["Fachgespräch", "Training (30–40 Min)", "laufend"],
-      ["Berufskenntnisse", "Closed-book Training (60 Min)", "laufend"],
-      ["Berufskenntnisse", "Open-book Training (120 Min)", "laufend"],
-      ["Dokumente", "Lerndokumentation vollständig", "2 Wochen vor QV"]
-    ];
-
-    for(const l of learnersCache.filter(x=>x.profession==="HOKO")){
-      // reports: check existing
-      const repSnap = await getDocs(query(collection(db,"learningReports"), where("learnerId","==", l.id)));
-      const existing = new Set(repSnap.docs.map(d=>d.data().reportNo));
-      for(const [reportNo, title, recommendedSemester] of reportDefaults){
-        if(existing.has(reportNo)) continue;
-        await addDoc(collection(db,"learningReports"), {
-          learnerId: l.id, reportNo, title, recommendedSemester,
-          status: "Offen",
-          assignedAt: null, submittedAt: null, approvedAt: null,
-          comment: "",
-          createdAt: new Date().toISOString()
-        });
-      }
-
-      // qv tasks: if none, seed
-      const qvSnap = await getDocs(query(collection(db,"qvTasks"), where("learnerId","==", l.id), limit(1)));
-      if(qvSnap.empty){
-        for(const [area, task, recommendedBy] of qvDefaults){
-          await addDoc(collection(db,"qvTasks"), {
-            learnerId: l.id, area, task, recommendedBy,
-            doneAt: null, resultNote: "", nextStep: "",
-            createdAt: new Date().toISOString()
-          });
-        }
-      }
-    }
-
-    alert("OK – Standarddaten angelegt (sofern fehlend).");
-    await loadDashboard();
-  }
-
-  async function loadReports(){
-    const learnerId = $("repLearnerSelect").value;
-    const statusFilter = $("repStatusFilter").value;
-    if(!learnerId){
-      $("reportsBox").innerHTML = `<div class="muted">Bitte Lernende wählen.</div>`;
-      return;
-    }
-    const snap = await getDocs(query(collection(db,"learningReports"), where("learnerId","==", learnerId)));
-    let rows = snap.docs.map(d=>({ id:d.id, ...d.data() })).sort((a,b)=>a.reportNo-b.reportNo);
-    if(statusFilter) rows = rows.filter(r=>r.status===statusFilter);
-
-    if(!rows.length){
-      $("reportsBox").innerHTML = `<div class="muted">Keine Lernberichte gefunden.</div>`;
-      return;
-    }
-
-    const can = canWrite();
-    $("reportsBox").innerHTML = `
-      <table>
-        <thead><tr>
-          <th>Nr</th><th>Titel</th><th>Sem</th><th>Status</th><th>Zugeteilt</th><th>Eingereicht</th><th>Abgehakt</th><th>Kommentar</th><th></th>
-        </tr></thead>
-        <tbody>
-          ${rows.map(r=>`
-            <tr>
-              <td><b>${r.reportNo}</b></td>
-              <td>${escapeHtml(r.title)}</td>
-              <td>${r.recommendedSemester ?? ""}</td>
-              <td>
-                ${can ? `
-                  <select data-rid="${r.id}" data-k="status">
-                    ${["Offen","Zugeteilt","Eingereicht","Abgehakt"].map(s=>`<option ${s===r.status?"selected":""}>${s}</option>`).join("")}
-                  </select>
-                ` : `<span class="pill">${r.status}</span>`}
-              </td>
-              <td>${can ? `<input data-rid="${r.id}" data-k="assignedAt" placeholder="YYYY-MM-DD" value="${r.assignedAt ?? ""}">` : (r.assignedAt ?? "")}</td>
-              <td>${can ? `<input data-rid="${r.id}" data-k="submittedAt" placeholder="YYYY-MM-DD" value="${r.submittedAt ?? ""}">` : (r.submittedAt ?? "")}</td>
-              <td>${can ? `<input data-rid="${r.id}" data-k="approvedAt" placeholder="YYYY-MM-DD" value="${r.approvedAt ?? ""}">` : (r.approvedAt ?? "")}</td>
-              <td>${can ? `<input data-rid="${r.id}" data-k="comment" value="${escapeAttr(r.comment ?? "")}">` : escapeHtml(r.comment ?? "")}</td>
-              <td>${can ? `<button class="secondary" data-save="${r.id}">Speichern</button>` : ""}</td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-      <div class="muted small" style="margin-top:8px">Hinweis: Speicherung pro Zeile über "Speichern".</div>
-    `;
-
-    // bind save buttons
-    document.querySelectorAll("[data-save]").forEach(btn=>{
-      btn.addEventListener("click", async ()=>{
-        const id = btn.getAttribute("data-save");
-        const fields = {};
-        document.querySelectorAll(`[data-rid="${id}"]`).forEach(el=>{
-          const k = el.getAttribute("data-k");
-          fields[k] = el.value.trim() || null;
-        });
-        // status should not be null
-        if(fields.status === null) fields.status = "Offen";
-        await updateDoc(doc(db,"learningReports", id), fields);
-        await loadDashboard();
-        alert("Gespeichert.");
-      });
-    });
-  }
-
-  async function loadQv(){
-    const learnerId = $("qvLearnerSelect").value;
-    if(!learnerId){
-      $("qvBox").innerHTML = `<div class="muted">Bitte Lernende wählen.</div>`;
-      return;
-    }
-    const snap = await getDocs(query(collection(db,"qvTasks"), where("learnerId","==", learnerId)));
-    const rows = snap.docs.map(d=>({ id:d.id, ...d.data() }));
-
-    if(!rows.length){
-      $("qvBox").innerHTML = `<div class="muted">Keine QV Tasks gefunden.</div>`;
-      return;
-    }
-
-    const can = canWrite();
-    $("qvBox").innerHTML = `
-      <table>
-        <thead><tr><th>Bereich</th><th>Task</th><th>Empfohlen</th><th>Erledigt am</th><th>Notiz</th><th>Nächster Schritt</th><th></th></tr></thead>
-        <tbody>
-          ${rows.map(r=>`
-            <tr>
-              <td>${escapeHtml(r.area)}</td>
-              <td>${escapeHtml(r.task)}</td>
-              <td>${escapeHtml(r.recommendedBy ?? "")}</td>
-              <td>${can ? `<input data-qid="${r.id}" data-k="doneAt" placeholder="YYYY-MM-DD" value="${r.doneAt ?? ""}">` : (r.doneAt ?? "")}</td>
-              <td>${can ? `<input data-qid="${r.id}" data-k="resultNote" value="${escapeAttr(r.resultNote ?? "")}">` : escapeHtml(r.resultNote ?? "")}</td>
-              <td>${can ? `<input data-qid="${r.id}" data-k="nextStep" value="${escapeAttr(r.nextStep ?? "")}">` : escapeHtml(r.nextStep ?? "")}</td>
-              <td>${can ? `<button class="secondary" data-qsave="${r.id}">Speichern</button>` : ""}</td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-    `;
-
-    document.querySelectorAll("[data-qsave]").forEach(btn=>{
-      btn.addEventListener("click", async ()=>{
-        const id = btn.getAttribute("data-qsave");
-        const fields = {};
-        document.querySelectorAll(`[data-qid="${id}"]`).forEach(el=>{
-          const k = el.getAttribute("data-k");
-          fields[k] = el.value.trim() || null;
-        });
-        await updateDoc(doc(db,"qvTasks", id), fields);
-        await loadDashboard();
-        alert("Gespeichert.");
-      });
-    });
-  }
-
-  async function loadSchedule(){
-    const kw = $("kwInput").value.trim();
-    if(!kw){
-      $("scheduleBox").innerHTML = `<div class="muted">Bitte KW eingeben.</div>`;
-      return;
-    }
-    const snap = await getDocs(query(collection(db,"weeklyAssignments"), where("kw","==", Number(kw))));
-    const rows = snap.docs.map(d=>({ id:d.id, ...d.data() }));
-
-    if(!rows.length){
-      $("scheduleBox").innerHTML = `<div class="muted">Keine Einträge für KW ${escapeHtml(kw)}.</div>`;
-      return;
-    }
-
-    // map learner names
-    const learnerMap = new Map(learnersCache.map(l=>[l.id, l]));
-    rows.sort((a,b)=>{
-      const la = learnerMap.get(a.learnerId)?.learnerNo ?? 999;
-      const lb = learnerMap.get(b.learnerId)?.learnerNo ?? 999;
-      return la-lb;
-    });
-
-    $("scheduleBox").innerHTML = `
-      <table>
-        <thead><tr><th>Lernende</th><th>Abteilung</th><th>Schicht</th><th>Von</th><th>Bis</th><th>Fokus</th><th>Kommentar</th></tr></thead>
-        <tbody>
-          ${rows.map(r=>{
-            const l = learnerMap.get(r.learnerId);
-            const name = l ? `${l.learnerNo} – ${l.name}` : "(unbekannt)";
-            return `
-              <tr>
-                <td>${escapeHtml(name)}</td>
-                <td>${escapeHtml(r.department)}</td>
-                <td>${escapeHtml(r.shift)}</td>
-                <td>${escapeHtml(r.from ?? "")}</td>
-                <td>${escapeHtml(r.to ?? "")}</td>
-                <td>${escapeHtml(r.focus ?? "")}</td>
-                <td>${escapeHtml(r.comment ?? "")}</td>
-              </tr>
-            `;
-          }).join("")}
-        </tbody>
-      </table>
-    `;
-  }
-
-  async function addSchedule(){
-    if(!canWrite()){
-      setText("scheduleMsg", "Keine Berechtigung (readonly).");
-      return;
-    }
-    const kw = Number($("kwInput").value.trim());
-    const learnerId = $("schLearnerSelect").value;
-    const department = $("schDept").value.trim();
-    const shift = $("schShift").value.trim();
-    const from = $("schFrom").value.trim() || null;
-    const to = $("schTo").value.trim() || null;
-    const focus = $("schFocus").value.trim() || null;
-    const comment = $("schComment").value.trim() || null;
-
-    if(!kw || !learnerId || !department || !shift){
-      setText("scheduleMsg", "Bitte KW, Lernende, Abteilung und Schicht ausfüllen.");
-      return;
-    }
-
-    await addDoc(collection(db,"weeklyAssignments"), {
-      kw, learnerId, department, shift, from, to, focus, comment,
-      createdAt: new Date().toISOString()
-    });
-
-    setText("scheduleMsg", "Gespeichert.");
-    await loadSchedule();
-  }
-
-  async function makeMeAdmin(){
-    if(!currentUser){
-      setText("adminMsg", "Bitte zuerst einloggen.");
-      return;
-    }
-    // Wichtig: In Production Rules ist update nur Admin erlaubt.
-    // Daher: Für die allererste Einrichtung musst du Rules kurz offen lassen ODER
-    // du setzt initial role manuell in Firestore Console.
-    //
-    // Praktischer Ablauf:
-    // 1) Nach erstem Login entsteht users/{uid} mit readonly.
-    // 2) Du gehst in Firestore Console und setzt role = admin.
-    //
-    // Diese Funktion ist als "Hilfsbutton" gedacht, wenn du die users-Regel temporär lockerst.
-    try{
-      const ref = doc(db,"users", currentUser.uid);
-      await updateDoc(ref, { role: "admin" });
-      setText("adminMsg", "OK – Rolle wurde auf admin gesetzt.");
-      await refreshRoleUI();
-    }catch(e){
-      setText("adminMsg", "Konnte Rolle nicht setzen (Rules blockieren). Tipp: In Firestore Console users/{uid} role manuell auf admin setzen.");
-    }
-  }
-
-  async function setRoleForUid(){
-    if(!isAdmin()){
-      alert("Nur Admin darf Rollen setzen.");
-      return;
-    }
-    const uid = $("setRoleUid").value.trim();
-    const role = $("setRoleValue").value;
-    if(!uid) return;
-
-    await setDoc(doc(db,"users", uid), { role }, { merge:true });
-    alert("OK – Rolle gesetzt.");
-    await renderAdminPanel();
-  }
-
-  async function renderAdminPanel(){
-    if(!currentUser){
-      $("adminPanelBox").innerHTML = "";
-      return;
-    }
-    // Zeige eigenen User (UID) an
-    const data = await ensureUserDoc(currentUser.uid, currentUser.email);
-    $("adminPanelBox").innerHTML = `
-      <div class="card" style="border-style:dashed">
-        <div><b>Dein Benutzer</b></div>
-        <div class="small muted">UID: <span class="pill">${escapeHtml(currentUser.uid)}</span></div>
-        <div class="small muted">E-Mail: ${escapeHtml(currentUser.email)}</div>
-        <div class="small muted">Rolle: ${escapeHtml(data.role || "readonly")}</div>
+<!-- ─── BILDUNGSBERICHT ─── -->
+<div class="section" id="sec-bildungsbericht">
+  <div class="page-title">Bildungsbericht</div>
+  <div class="page-sub">Offizieller Bildungsbericht nach 4 Kompetenzdimensionen · Wird automatisch generiert</div>
+  <div class="lb" id="bb-lb"></div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-t">Bewertung</div>
+      <div class="card-s">1 = Ungenügend · 6 = Ausgezeichnet</div>
+      <div id="bb-ratings"></div>
+      <div class="divider"></div>
+      <label class="fl">Allgemeine Bemerkungen</label>
+      <textarea class="fi" id="bb-bem" placeholder="Stärken, Entwicklungsfelder, besondere Leistungen..."></textarea>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button class="btn btn-gold" onclick="generateBB()">📋 Bericht generieren</button>
+        <button class="btn btn-out" onclick="saveBewertungen();toast('✓ Gespeichert')">💾 Speichern</button>
       </div>
-    `;
-  }
+    </div>
+    <div class="card">
+      <div class="card-t">Vorschau</div>
+      <div class="card-s">Klicke "Bericht generieren"</div>
+      <div id="bb-preview"><div style="text-align:center;padding:28px 0;color:var(--dim);font-size:12px;">Klicke "Bericht generieren" für die Vorschau.</div></div>
+    </div>
+  </div>
+</div>
 
-  // Auth buttons
-  $("googleBtn").addEventListener("click", async ()=>{
-    setText("loginMsg","");
-    const prov = new GoogleAuthProvider();
-    await signInWithPopup(auth, prov);
-  });
+<!-- ─── QV VORBEREITUNG ─── -->
+<div class="section" id="sec-qv">
+  <div class="page-title">QV-Vorbereitung 2026</div>
+  <div class="page-sub">CPEX (3 Situationen) · PEX (Fachgespräch) · Berufskenntnisse · Bereitschaft basierend auf LZ-Fortschritt</div>
+  <div class="lb" id="qv-lb"></div>
+  <div class="g3" style="margin-bottom:14px;">
+    <div style="background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.25);border-radius:12px;padding:18px;text-align:center;">
+      <div style="font-family:'DM Serif Display',serif;font-size:44px;color:var(--gold);" id="qv-days">–</div>
+      <div style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-top:4px;">Tage bis QV</div>
+    </div>
+    <div style="background:rgba(46,90,140,.08);border:1px solid rgba(90,143,192,.25);border-radius:12px;padding:18px;">
+      <div class="card-t">CPEX</div>
+      <div class="card-s">3 Prüfungssituationen</div>
+      <div class="qv-sit"><div class="qv-sit-label">Situation 1 · HKB 1 & 3</div><div style="font-size:12px;">Gast-Check-in mit Sonderwunsch & Reklamation</div></div>
+      <div class="qv-sit"><div class="qv-sit-label">Situation 2 · HKB 1 & 2</div><div style="font-size:12px;">Telefonische Reservierung & schriftliche Korrespondenz</div></div>
+      <div class="qv-sit"><div class="qv-sit-label">Situation 3 · HKB 4</div><div style="font-size:12px;">Nachhaltigkeit & Qualitätssicherung</div></div>
+    </div>
+    <div style="background:rgba(91,140,90,.08);border:1px solid rgba(122,192,122,.25);border-radius:12px;padding:18px;">
+      <div class="card-t">PEX · Alle HKB</div>
+      <div class="card-s">Fachgespräch mit Expertinnen</div>
+      <div style="font-size:12px;line-height:1.6;">Das Fachgespräch dauert 40 Minuten und umfasst alle 4 Handlungskompetenzbereiche. Bewertet werden Fach-, Methoden-, Sozial- und Selbstkompetenz.</div>
+      <div class="divider"></div>
+      <div style="font-size:11px;color:var(--dim);">Gesamtfortschritt LZ:</div>
+      <div class="pbar" style="margin-top:5px;">
+        <div class="pfill" id="qv-overall-bar" style="width:0%;background:var(--green-l)"></div>
+      </div>
+      <div style="text-align:right;font-size:11px;color:var(--green-l);margin-top:3px;" id="qv-overall-pct">0%</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-t">Bereitschaft pro Handlungskompetenz</div>
+    <div class="card-s">Grün ≥ 80% · Gelb ≥ 50% · Rot &lt; 50% der Leistungsziele erledigt</div>
+    <div id="qv-status"></div>
+  </div>
+</div>
 
-  $("msBtn").addEventListener("click", async ()=>{
-    setText("loginMsg","");
-    // Microsoft provider (optional): funktioniert nur wenn in Firebase Auth aktiviert + Azure korrekt gesetzt
-    const prov = new OAuthProvider("microsoft.com");
-    await signInWithPopup(auth, prov);
-  });
+<!-- ─── EINSATZPLAN ─── -->
+<div class="section" id="sec-einsatzplan">
+  <div class="page-title">Einsatzplan</div>
+  <div class="page-sub">Wochenplanung & Pflichtabteilungen · Gemäss Bildungsplan HKB 1.2 (Nahtstellen)</div>
+  <div class="card" style="margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div class="card-t" id="kw-label">Aktuelle Woche</div>
+        <div class="card-s">Alle Lernenden im Überblick</div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-out btn-sm" onclick="changeWeek(-1)">← Vorwoche</button>
+        <button class="btn btn-out btn-sm" onclick="changeWeek(0)">Heute</button>
+        <button class="btn btn-out btn-sm" onclick="changeWeek(1)">Nächste →</button>
+      </div>
+    </div>
+    <div id="ep-grid"></div>
+  </div>
+  <div class="card">
+    <div class="card-t">Pflichtabteilungen</div>
+    <div class="card-s">Lernende müssen alle Abteilungen durchlaufen (HKB 1.2 Nahtstellen)</div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;font-size:12px;margin-top:8px;">
+      <div style="padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border);"><div class="ep-cell ae" style="margin-bottom:5px;">Empfang</div>Mind. 6 Wochen</div>
+      <div style="padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border);"><div class="ep-cell ar" style="margin-bottom:5px;">Reservierung</div>Mind. 4 Wochen</div>
+      <div style="padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border);"><div class="ep-cell ak" style="margin-bottom:5px;">Kommunikation</div>Mind. 4 Wochen</div>
+      <div style="padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border);"><div class="ep-cell as" style="margin-bottom:5px;">Service/F&B</div>Mind. 4 Wochen</div>
+      <div style="padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border);"><div class="ep-cell ah" style="margin-bottom:5px;">Housekeeping</div>Mind. 2 Wochen</div>
+    </div>
+  </div>
+</div>
 
-  $("logoutBtn").addEventListener("click", async ()=>{
-    await signOut(auth);
-  });
+<!-- ─── KI ASSISTENT ─── -->
+<div class="section" id="sec-ki">
+  <div class="page-title">KI-Assistent</div>
+  <div class="page-sub">Fragen zum Bildungsplan, QV, Bildungsberichten und Ausbildungsmethoden via Anthropic Claude</div>
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div class="ki-top">
+      <span style="font-size:11px;color:var(--dim);white-space:nowrap;">API-Key:</span>
+      <input type="password" class="fi" id="ki-key" placeholder="sk-ant-api03-... (lokal in Firebase gespeichert)" style="margin:0;" onchange="saveApiKey()">
+      <span id="ki-status" style="font-size:11px;white-space:nowrap;"></span>
+    </div>
+    <div class="ki-qb-row">
+      <span style="font-size:11px;color:var(--dim);align-self:center;">Schnell:</span>
+      <button class="ki-qb" onclick="qAsk('Was sind die wichtigsten Leistungsziele im HKB 1?')">HKB 1 Leistungsziele</button>
+      <button class="ki-qb" onclick="qAsk('Wie bereite ich eine/n Lernende/n optimal auf das QV-Fachgespräch vor?')">QV Fachgespräch</button>
+      <button class="ki-qb" onclick="qAsk('Welche Kompetenzdimensionen werden im Bildungsbericht bewertet und was bedeuten sie?')">Bildungsbericht</button>
+      <button class="ki-qb" onclick="qAsk('Erkläre die Taxonomiestufen K1-K6 nach Bloom mit konkreten Hotel-KoFa-Beispielen.')">Taxonomie K1-K6</button>
+      <button class="ki-qb" onclick="qAsk('Was sind die Unterschiede zwischen CPEX und PEX im QV?')">CPEX vs. PEX</button>
+    </div>
+    <div class="ki-wrap">
+      <div class="ki-msgs" id="ki-msgs">
+        <div class="ki-msg assistant">👋 <strong>Guten Tag!</strong> Ich bin dein Bildungsplan-Assistent für Hotel-KoFa EFZ. Ich kenne alle 4 HKBs, 21 Handlungskompetenzen, alle Leistungsziele und die QV-Anforderungen 2026.<br><br>Gib oben deinen <strong>Anthropic API-Key</strong> ein, um loszulegen — er wird sicher in deiner Firebase gespeichert.</div>
+      </div>
+      <div class="ki-in-row">
+        <textarea class="ki-ta" id="ki-in" placeholder="Frage zur Ausbildung oder zum Bildungsplan…" onkeydown="kiKey(event)" oninput="kiResize(this)"></textarea>
+        <button class="btn btn-gold" onclick="kiSend()" style="align-self:flex-end;">Senden ↑</button>
+      </div>
+    </div>
+  </div>
+</div>
 
-  // Nav
-  document.querySelectorAll(".nav button[data-page]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      showPage(btn.getAttribute("data-page"));
-    });
-  });
+<!-- ─── DATENBANK ─── -->
+<div class="section" id="sec-db">
+  <div class="page-title">Datenbank</div>
+  <div class="page-sub">Alle Daten in Firebase Firestore (sicher, cloud-basiert) · Dateien in Firebase Storage</div>
+  <div class="g2">
+    <div>
+      <div class="card" style="margin-bottom:14px;">
+        <div class="card-t">Lehrlinge verwalten</div>
+        <div class="card-s">Lernende hinzufügen oder entfernen</div>
+        <div id="db-lehrlinge"></div>
+        <button class="btn btn-out" style="width:100%;margin-top:10px;" onclick="openModal('lehrling')">+ Lehrling hinzufügen</button>
+      </div>
+      <div class="card">
+        <div class="card-t">Backup</div>
+        <div class="card-s">Alle Daten exportieren / importieren</div>
+        <button class="btn btn-gold" style="width:100%;margin-bottom:8px;" onclick="exportBackup()">⬇ Backup exportieren (JSON)</button>
+        <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importBackup(event)">
+        <button class="btn btn-out" style="width:100%;" onclick="document.getElementById('import-file').click()">📁 Backup importieren</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-t">Datenbankstatus</div>
+      <div class="card-s">Firebase Firestore + Storage</div>
+      <div id="db-status"></div>
+      <div class="divider"></div>
+      <div style="font-size:12px;color:var(--dim);margin-bottom:10px;">Firebase-Konfiguration:</div>
+      <div style="font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;font-family:monospace;line-height:1.7;">
+        Konfiguration in der HTML-Datei unter <code>firebaseConfig</code> anpassen.<br>
+        Werte aus der Firebase Console kopieren.
+      </div>
+    </div>
+  </div>
+</div>
 
-  // Actions
-  $("refreshLearnersBtn").addEventListener("click", async ()=>{ await loadLearners(); await loadDashboard(); });
-  $("addLearnerBtn").addEventListener("click", addLearner);
-  $("seedDefaultsBtn").addEventListener("click", seedDefaults);
-  $("loadReportsBtn").addEventListener("click", loadReports);
-  $("loadQvBtn").addEventListener("click", loadQv);
-  $("loadScheduleBtn").addEventListener("click", loadSchedule);
-  $("addScheduleBtn").addEventListener("click", addSchedule);
-  $("makeMeAdminBtn").addEventListener("click", makeMeAdmin);
-  $("setRoleBtn").addEventListener("click", setRoleForUid);
+</main>
+</div>
 
-  // Auth state
-  onAuthStateChanged(auth, async (u)=>{
-    currentUser = u;
-    if(!u){
-      show("loginCard", true);
-      show("app", false);
-      $("logoutBtn").classList.add("hidden");
-      setText("userInfo","");
-      myRole = null;
-      return;
-    }
+<!-- ─── MODALS ─── -->
+<div class="modal-overlay" id="modal-lehrling">
+  <div class="modal">
+    <div class="modal-t">Lehrling erfassen</div>
+    <label class="fl">Vorname</label><input class="fi" type="text" id="nl-vn" placeholder="z.B. Mia">
+    <label class="fl">Nachname</label><input class="fi" type="text" id="nl-nn" placeholder="z.B. Steiner">
+    <label class="fl">Lehrjahr</label>
+    <select class="fi" id="nl-lj">
+      <option value="1">1. Lehrjahr</option>
+      <option value="2" selected>2. Lehrjahr</option>
+      <option value="3">3. Lehrjahr</option>
+    </select>
+    <label class="fl">Ausbildungsstart</label>
+    <input class="fi" type="month" id="nl-start" value="2024-08">
+    <div class="modal-actions">
+      <button class="btn btn-out" onclick="closeModal('lehrling')">Abbrechen</button>
+      <button class="btn btn-gold" onclick="addLehrling()">✓ Hinzufügen</button>
+    </div>
+  </div>
+</div>
 
-    show("loginCard", false);
-    show("app", true);
+<div class="modal-overlay" id="modal-bericht">
+  <div class="modal">
+    <div class="modal-t">Neuer Lernbericht</div>
+    <label class="fl">Lernende/r</label>
+    <select class="fi" id="nb-lid"></select>
+    <label class="fl">Semester</label>
+    <select class="fi" id="nb-sem">
+      <option value="1">Semester 1</option><option value="2">Semester 2</option>
+      <option value="3">Semester 3</option><option value="4" selected>Semester 4</option>
+      <option value="5">Semester 5</option><option value="6">Semester 6</option>
+    </select>
+    <label class="fl">Bezug Handlungskompetenz</label>
+    <select class="fi" id="nb-hk"></select>
+    <label class="fl">Thema / Titel</label>
+    <input class="fi" type="text" id="nb-thema" placeholder="z.B. Check-in bei Gruppenanreise">
+    <label class="fl">Status</label>
+    <select class="fi" id="nb-status">
+      <option value="eingereicht">Eingereicht (von Lernenden)</option>
+      <option value="visiert">Visiert (Berufsbildner)</option>
+      <option value="offen">Offen</option>
+    </select>
+    <label class="fl">Positiv aufgefallen</label>
+    <textarea class="fi" id="nb-pos" placeholder="Was ist besonders positiv aufgefallen..."></textarea>
+    <label class="fl">Verbesserungsmöglichkeiten</label>
+    <textarea class="fi" id="nb-verb" placeholder="Folgende Verbesserungsmöglichkeiten sehe ich..."></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-out" onclick="closeModal('bericht')">Abbrechen</button>
+      <button class="btn btn-gold" onclick="saveBericht()">✓ Speichern</button>
+    </div>
+  </div>
+</div>
 
-    await refreshRoleUI();
-    await renderAdminPanel();
-    await loadLearners();
-    await loadDashboard();
-
-    // default page
-    showPage("dashboard");
-  });
-
-  // Utils: escaping
-  function escapeHtml(s){
-    return String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m]));
-  }
-  function escapeAttr(s){ return escapeHtml(s).replace(/"/g,"&quot;"); }
-</script>
 </body>
-
 </html>
