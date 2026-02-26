@@ -502,7 +502,7 @@ function showTab(id,el){
 function makeLB(id){
   const el=document.getElementById(id);if(!el)return;
   el.innerHTML=S.lehrlinge.map(l=>`
-    <div class="lp ${l.id===currentLid?'active':''}" onclick="selectL('${l.id}')">
+    <div class="lp ${l.id===currentLid?'active':''}" onclick="window.selectL('${l.id}')">
       <div class="lav" style="background:${l.color||'#555'}">${l.initials}</div>
       <div><div style="font-size:12px;font-weight:500;">${l.vorname} ${l.nachname}</div>
       <div class="dim" style="font-size:10px;">${l.lj}. Lehrjahr</div></div>
@@ -589,10 +589,10 @@ function renderBildungsplan(){
   document.getElementById('bp-total-lbl').textContent=lzP.pct+'%';
 
   // Semester-Buttons mit Fortschritt
-  let semBtns=`<button class="sem-btn ${bpSemFilter===0?'active':''}" onclick="setBpSem(0)">Alle</button>`;
+  let semBtns=`<button class="sem-btn ${bpSemFilter===0?'active':''}" onclick="window.setBpSem(0)">Alle</button>`;
   for(let s=1;s<=6;s++){
     const sp=calcSemProgress(lid,s);
-    semBtns+=`<button class="sem-btn ${bpSemFilter===s?'active':''}" onclick="setBpSem(${s})">
+    semBtns+=`<button class="sem-btn ${bpSemFilter===s?'active':''}" onclick="window.setBpSem(${s})">
       S${s} ${sp.complete?'✓':sp.pct+'%'}
     </button>`;
   }
@@ -611,7 +611,7 @@ function renderBildungsplan(){
     const hkbLZKs=filteredHKs.flatMap(hk=>hk.lzFiltered.map(l2=>l2.k));
     const hkbDone=hkbLZKs.filter(k=>lz[k]).length;
     html+=`<div class="hkb-block">
-      <div class="hkb-hd" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')" style="border-left:3px solid ${hkb.color}">
+      <div class="hkb-hd" onclick="window.this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')" style="border-left:3px solid ${hkb.color}">
         <span class="hkb-code" style="color:${hkb.color}">${hkb.code}</span>
         <span class="hkb-t">${hkb.titel}</span>
         <span class="dim" style="font-size:11px;">${hkbDone}/${hkbLZKs.length} LZ</span>
@@ -628,13 +628,13 @@ function renderBildungsplan(){
         <div class="hk-st ${isDone?'done':isP?'part':''}">${isDone?'✓':isP?'◐':''}</div>
         <div class="hk-body">
           <div class="hk-meta"><span class="hk-code">HK ${hk.id}</span><span class="hk-tax">${hk.tax}</span>${semTags}</div>
-          <div class="hk-t" onclick="toggleLL('ll-${hk.id.replace('.','_')}')">${hk.titel}</div>
-          <div class="hk-prog">${done}/${hk.lzFiltered.length} LZ<span class="dim" style="cursor:pointer;" onclick="toggleLL('ll-${hk.id.replace('.','_')}')"> ▾ aufklappen</span></div>
+          <div class="hk-t" onclick="window.toggleLL('ll-${hk.id.replace('.','_')}')">${hk.titel}</div>
+          <div class="hk-prog">${done}/${hk.lzFiltered.length} LZ<span class="dim" style="cursor:pointer;" onclick="window.toggleLL('ll-${hk.id.replace('.','_')}')"> ▾ aufklappen</span></div>
           <div class="lz-list" id="ll-${hk.id.replace('.','_')}">
             ${hk.lzFiltered.map(lzItem=>{
               const chk=!!lz[lzItem.k];
               const semLabel=LZ_SEM[lzItem.k]?LZ_SEM[lzItem.k].map(s=>`S${s}`).join(','):'';
-              return `<div class="lz-row" onclick="toggleLZ('${lid}','${lzItem.k}',this)">
+              return `<div class="lz-row" onclick="window.toggleLZ('${lid}','${lzItem.k}',this)">
                 <div class="lz-cb ${chk?'on':''}">${chk?'✓':''}</div>
                 <div class="lz-t ${chk?'done-t':''}">${lzItem.k} ${lzItem.t}<span class="dim" style="font-size:9px;margin-left:4px;">[${semLabel}]</span></div>
               </div>`;
@@ -702,13 +702,13 @@ function renderLernberichte(){
       </div>`;
     semB.forEach(b=>{
       const si={visiert:'✅',eingereicht:'📄',offen:'○'};
-      html+=`<div class="b-card ${b.status}" onclick="showBericht('${b.id}')">
+      html+=`<div class="b-card ${b.status}" onclick="window.showBericht('${b.id}')">
         <div style="font-size:15px;">${si[b.status]||'○'}</div>
         <div style="font-size:11px;line-height:1.3;margin-top:3px;">${(b.thema||'–').substring(0,28)}</div>
         <div style="font-size:10px;color:var(--gold);">${b.hk?'HK '+b.hk:''}</div>
       </div>`;
     });
-    html+=`<div class="b-card add" onclick="openNewBericht(${sem})">+ Neu</div></div>`;
+    html+=`<div class="b-card add" onclick="window.openNewBericht(${sem})">+ Neu</div></div>`;
   }
   html+='</div>';
   document.getElementById('b-grid').innerHTML=html;
@@ -770,8 +770,8 @@ function showBericht(bid){
       <div class="dim" style="font-size:11px;">Semester ${b.sem}${b.hk?' · HK '+b.hk:''}${b.datum?' · '+fmtDate(b.datum):''}</div></div>
       <div style="display:flex;gap:5px;align-items:center;">
         <span class="tag ${sc[b.status]||'tb'}">${{visiert:'✅ Visiert',eingereicht:'📄 Eingereicht',offen:'○ Offen'}[b.status]||b.status}</span>
-        <button class="btn btn-out btn-sm" onclick="editBericht('${bid}')">✏️</button>
-        <button class="btn btn-sm" style="background:transparent;border:1px solid var(--red);color:var(--red-l);" onclick="deleteBericht('${bid}')">🗑</button>
+        <button class="btn btn-out btn-sm" onclick="window.editBericht('${bid}')">✏️</button>
+        <button class="btn btn-sm" style="background:transparent;border:1px solid var(--red);color:var(--red-l);" onclick="window.deleteBericht('${bid}')">🗑</button>
       </div>
     </div>
     ${b.pos?`<div class="bd-sec"><div class="bd-sec-lbl">Positiv aufgefallen</div><div class="bd-sec-body ok">${b.pos}</div></div>`:''}
@@ -779,7 +779,7 @@ function showBericht(bid){
     ${b.status==='eingereicht'?`<div class="bd-sec"><div class="bd-sec-lbl" style="color:var(--gold)">✍️ Jetzt visieren</div>
       <textarea class="fi" id="fb-pos" placeholder="Positiv aufgefallen..."></textarea>
       <textarea class="fi" id="fb-verb" placeholder="Verbesserungsmöglichkeiten..." style="margin-top:6px;"></textarea>
-      <button class="btn btn-gold" style="margin-top:8px;" onclick="visiereBericht('${bid}')">✓ Visieren</button>
+      <button class="btn btn-gold" style="margin-top:8px;" onclick="window.visiereBericht('${bid}')">✓ Visieren</button>
     </div>`:''}
     <div class="divider"></div>
     <div class="bd-sec-lbl">📎 Anhänge (${att.length})</div>
@@ -787,13 +787,13 @@ function showBericht(bid){
       <span>${fileIcon(a.name)}</span>
       <a href="${a.url}" target="_blank" class="att-name">${a.name}</a>
       <span class="dim">${fmtSize(a.size||0)}</span>
-      <button class="btn btn-out btn-sm" onclick="delAtt('${bid}','${a.name}','${encodeURIComponent(a.path||'')}')">✕</button>
+      <button class="btn btn-out btn-sm" onclick="window.delAtt('${bid}','${a.name}','${encodeURIComponent(a.path||'')}')">✕</button>
     </div>`).join('')}</div>`:'<div class="dim" style="font-size:12px;margin:8px 0;">Noch keine Anhänge.</div>'}
-    <div class="att-zone" onclick="document.getElementById('att-f').click()"
-      ondragover="event.preventDefault();this.classList.add('drag')"
-      ondragleave="this.classList.remove('drag')"
-      ondrop="dropAtt(event,'${bid}')">☁️ PDF oder Bild ablegen / klicken</div>
-    <input type="file" id="att-f" multiple accept=".pdf,image/*" style="display:none" onchange="uploadAtt(event,'${bid}')">`;
+    <div class="att-zone" onclick="window.document.getElementById('att-f').click()"
+      ondragover="window.event.preventDefault();this.classList.add('drag')"
+      ondragleave="window.this.classList.remove('drag')"
+      ondrop="window.dropAtt(event,'${bid}')">☁️ PDF oder Bild ablegen / klicken</div>
+    <input type="file" id="att-f" multiple accept=".pdf,image/*" style="display:none" onchange="window.uploadAtt(event,'${bid}')">`;
 }
 async function visiereBericht(bid){
   const pos=document.getElementById('fb-pos')?.value||'',verb=document.getElementById('fb-verb')?.value||'';
@@ -881,7 +881,7 @@ function renderBBAdmin(bew){
     const ab=bew[`abt_${abt.id}`]||{};
     const hasData=ALL_BB_ITEMS.some(item=>ab[item.k]);
     html+=`<div class="abt-section">
-      <div class="abt-hd" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+      <div class="abt-hd" onclick="window.this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
         <span>${abt.icon} ${abt.label}</span>
         <span>${hasData?'<span class="tag tg">Ausgefüllt</span>':'<span class="tag tr">Ausstehend</span>'}</span>
         <span class="chev">▶</span>
@@ -944,11 +944,11 @@ function renderBBAdmin(bew){
         </div>
         <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;min-width:160px;">
           <div class="abcd-btns">
-            ${['A','B','C','D'].map(g=>`<button class="abcd-btn ${val===g?'sel-'+g:''}" onclick="setFinalGrade('${item.k}','${g}')">${g}</button>`).join('')}
+            ${['A','B','C','D'].map(g=>`<button class="abcd-btn ${val===g?'sel-'+g:''}" onclick="window.setFinalGrade('${item.k}','${g}')">${g}</button>`).join('')}
           </div>
           <input type="text" class="fi" style="width:150px;font-size:10px;padding:4px 8px;" placeholder="Kommentar…" 
             value="${comm.replace(/"/g,'&quot;')}" 
-            oninput="setFinalComment('${item.k}',this.value)">
+            oninput="window.setFinalComment('${item.k}',this.value)">
         </div>
       </div>`;
     });
@@ -971,8 +971,8 @@ function renderBBAdmin(bew){
     <label class="fl">Diverses / Abmachungen Freikurse</label>
     <textarea class="fi" id="fin-diverses" placeholder="Diverses…">${fin.diverses||''}</textarea>
     <div style="display:flex;gap:8px;margin-top:12px;">
-      <button class="btn btn-gold" onclick="saveFinalBew()">💾 Finale Bewertung speichern</button>
-      <button class="btn btn-out" onclick="generateBB()">📋 Bericht generieren</button>
+      <button class="btn btn-gold" onclick="window.saveFinalBew()">💾 Finale Bewertung speichern</button>
+      <button class="btn btn-out" onclick="window.generateBB()">📋 Bericht generieren</button>
     </div>
   </div>`;
   document.getElementById('bb-form').innerHTML=html;
@@ -995,11 +995,11 @@ function renderBBAbteilung(bew,abtId){
         </div>
         <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;min-width:160px;">
           <div class="abcd-btns">
-            ${['A','B','C','D'].map(g=>`<button class="abcd-btn ${val===g?'sel-'+g:''}" onclick="setAbtGrade('${abtId}','${item.k}','${g}')">${g}</button>`).join('')}
+            ${['A','B','C','D'].map(g=>`<button class="abcd-btn ${val===g?'sel-'+g:''}" onclick="window.setAbtGrade('${abtId}','${item.k}','${g}')">${g}</button>`).join('')}
           </div>
           <input type="text" class="fi" style="width:150px;font-size:10px;padding:4px 8px;" placeholder="Kommentar…"
             value="${comm.replace(/"/g,'&quot;')}"
-            oninput="setAbtComment('${abtId}','${item.k}',this.value)">
+            oninput="window.setAbtComment('${abtId}','${item.k}',this.value)">
         </div>
       </div>`;
     });
@@ -1013,13 +1013,13 @@ function renderBBAbteilung(bew,abtId){
     <div class="bb-item-row" style="margin-bottom:8px;">
       <div style="flex:1;font-size:12px;">7.1 Erhaltene betriebliche Ausbildung (${abt?.label})</div>
       <div class="abcd-btns">
-        ${['A','B','C','D'].map(g=>`<button class="abcd-btn ${(ab.selbst_betrieb||'')===(g)?'sel-'+g:''}" onclick="setAbtGrade('${abtId}','selbst_betrieb','${g}')">${g}</button>`).join('')}
+        ${['A','B','C','D'].map(g=>`<button class="abcd-btn ${(ab.selbst_betrieb||'')===(g)?'sel-'+g:''}" onclick="window.setAbtGrade('${abtId}','selbst_betrieb','${g}')">${g}</button>`).join('')}
       </div>
     </div>
     <label class="fl">Begründung / Ergänzungen Selbstbeurteilung</label>
     <textarea class="fi" id="abt-selbst-bem" placeholder="Begründungen und Ergänzungen der lernenden Person…">${ab.selbst_bem||''}</textarea>
     <div style="margin-top:12px;">
-      <button class="btn btn-gold" onclick="saveAbtBew('${abtId}')">💾 Bewertung speichern</button>
+      <button class="btn btn-gold" onclick="window.saveAbtBew('${abtId}')">💾 Bewertung speichern</button>
     </div>
   </div>`;
   document.getElementById('bb-form').innerHTML=html;
@@ -1031,7 +1031,7 @@ function setAbtGrade(abtId,key,grade){
   if(!S.bewertungen[currentLid][akey])S.bewertungen[currentLid][akey]={};
   S.bewertungen[currentLid][akey][key]=grade;
   // Update button styles
-  const btn=document.querySelector(`[onclick="setAbtGrade('${abtId}','${key}','${grade}')"]`);
+  const btn=document.querySelector(`[onclick="window.setAbtGrade('${abtId}','${key}','${grade}')"]`);
   if(btn){
     btn.closest('.abcd-btns')?.querySelectorAll('.abcd-btn').forEach(b=>b.className='abcd-btn');
     btn.className=`abcd-btn sel-${grade}`;
@@ -1060,7 +1060,7 @@ function setFinalGrade(key,grade){
   if(!S.bewertungen[currentLid])S.bewertungen[currentLid]={};
   if(!S.bewertungen[currentLid].final)S.bewertungen[currentLid].final={};
   S.bewertungen[currentLid].final[key]=grade;
-  const btn=document.querySelector(`[onclick="setFinalGrade('${key}','${grade}')"]`);
+  const btn=document.querySelector(`[onclick="window.setFinalGrade('${key}','${grade}')"]`);
   if(btn){btn.closest('.abcd-btns')?.querySelectorAll('.abcd-btn').forEach(b=>b.className='abcd-btn');btn.className=`abcd-btn sel-${grade}`;}
 }
 function setFinalComment(key,val){
@@ -1186,23 +1186,23 @@ function renderQVSzenarien(){
         </div>
         <div style="display:flex;gap:5px;align-items:center;">
           <span class="tag ${allDone?'tg':done.length>0?'ty':'tr'}">${done.length}/${sz.aufgaben.length}</span>
-          ${isCustom?`<button class="btn btn-sm" style="background:transparent;border:1px solid var(--red);color:var(--red-l);" onclick="deleteSzenario('${sz.id}')">🗑</button>`:''}
+          ${isCustom?`<button class="btn btn-sm" style="background:transparent;border:1px solid var(--red);color:var(--red-l);" onclick="window.deleteSzenario('${sz.id}')">🗑</button>`:''}
         </div>
       </div>
       <div style="margin-top:8px;">
         ${sz.aufgaben.map((a,i)=>{
           const text=typeof a==='string'?a:a.text;
           const isDone=done.includes(i);
-          return `<div class="lz-row" onclick="toggleSzAufgabe('${sz.id}',${i},this)">
+          return `<div class="lz-row" onclick="window.toggleSzAufgabe('${sz.id}',${i},this)">
             <div class="lz-cb ${isDone?'on':''}">${isDone?'✓':''}</div>
             <div class="lz-t ${isDone?'done-t':''}">${text}</div>
           </div>`;
         }).join('')}
       </div>
-      <button class="btn btn-out btn-sm" style="margin-top:8px;" onclick="openAddAufgabe('${sz.id}')">+ Aufgabe hinzufügen</button>
+      <button class="btn btn-out btn-sm" style="margin-top:8px;" onclick="window.openAddAufgabe('${sz.id}')">+ Aufgabe hinzufügen</button>
     </div>`;
   });
-  html+=`<button class="btn btn-gold" style="width:100%;margin-top:8px;" onclick="openModal('szenario')">+ Neues Szenario erstellen</button>`;
+  html+=`<button class="btn btn-gold" style="width:100%;margin-top:8px;" onclick="window.openModal('szenario')">+ Neues Szenario erstellen</button>`;
   document.getElementById('qv-szenarien').innerHTML=html;
 }
 
@@ -1344,7 +1344,7 @@ function renderEinsatzMonth(){
     const abtKey=getSlot(lid,d)||null;
     const abt=ABTS.find(a=>a.k===abtKey);
     html+=`<div class="ep-m-cell ${isCurrentMonth?'':'other-month'} ${isToday?'today':''} ${abt?abt.cls:''}"
-      onclick="epMonthClick('${lid}','${d}',this)"
+      onclick="window.epMonthClick('${lid}','${d}',this)"
       title="${cur.toLocaleDateString('de-CH',{weekday:'short',day:'numeric',month:'short'})}">
       <div class="ep-m-day">${cur.getDate()}</div>
       ${abt?`<div class="ep-m-abt">${abt.icon} ${abt.l}</div>`:'<div class="ep-m-abt-empty"></div>'}
@@ -1355,7 +1355,7 @@ function renderEinsatzMonth(){
   html+=`</div>`;
   // Lernenden-Auswahl für Monat
   if(S.lehrlinge.length>1){
-    html=`<div class="lb" style="margin-bottom:12px;">${S.lehrlinge.map(l2=>`<div class="lp ${l2.id===lid?'active':''}" onclick="selectL('${l2.id}')"><div class="lav" style="background:${l2.color||'#555'}">${l2.initials}</div><div style="font-size:11px;">${l2.vorname}</div></div>`).join('')}</div>`+html;
+    html=`<div class="lb" style="margin-bottom:12px;">${S.lehrlinge.map(l2=>`<div class="lp ${l2.id===lid?'active':''}" onclick="window.selectL('${l2.id}')"><div class="lav" style="background:${l2.color||'#555'}">${l2.initials}</div><div style="font-size:11px;">${l2.vorname}</div></div>`).join('')}</div>`+html;
   }
   document.getElementById('ep-main').innerHTML=html;
 }
@@ -1376,7 +1376,7 @@ function renderEinsatzWeek(){
       const abtKey=getSlot(l.id,dkey)||'frei';
       const abt=ABTS.find(a=>a.k===abtKey)||ABTS[ABTS.length-1];
       html+=`<div class="ep-cell ${abt.cls} ${epSelectedCell?.lid===l.id&&epSelectedCell?.date===dkey?'selected':''}"
-        onclick="epCellClick('${l.id}','${dkey}',this)">${abt.icon} ${abt.l}</div>`;
+        onclick="window.epCellClick('${l.id}','${dkey}',this)">${abt.icon} ${abt.l}</div>`;
     });
   }
   html+=`</div>`;
@@ -1398,7 +1398,7 @@ function renderEinsatzDay(){
       </div>
       <div class="ep-cell ${abt?abt.cls:'af2'}" style="width:100%;padding:10px;font-size:13px;margin-bottom:8px;">${abt?abt.icon+' '+abt.l:'— Nicht geplant'}</div>
       <div style="display:flex;flex-wrap:wrap;gap:4px;">
-        ${ABTS.map(a=>`<div class="ep-mini-btn ${a.cls}" onclick="setDaySlot('${l.id}','${dkey}','${a.k}')">${a.icon} ${a.l}</div>`).join('')}
+        ${ABTS.map(a=>`<div class="ep-mini-btn ${a.cls}" onclick="window.setDaySlot('${l.id}','${dkey}','${a.k}')">${a.icon} ${a.l}</div>`).join('')}
       </div>
     </div>`;
   });
@@ -1412,7 +1412,7 @@ function renderEpPalette(){
     <div style="display:flex;flex-wrap:wrap;gap:4px;" id="ep-pal-btns">
       ${ABTS.map(a=>`<div class="ep-mini-btn ${a.cls}" id="pal-${a.k}"
         draggable="true"
-        ondragstart="palDragStart(event,'${a.k}')">${a.icon} ${a.l}</div>`).join('')}
+        ondragstart="window.palDragStart(event,'${a.k}')">${a.icon} ${a.l}</div>`).join('')}
     </div>`;
 }
 
@@ -1512,9 +1512,9 @@ function termCard(t,past){
       ${t.beschreibung?`<div class="dim" style="font-size:12px;">${t.beschreibung}</div>`:''}
     </div>
     <div style="display:flex;gap:4px;flex-shrink:0;">
-      ${!t.erledigt?`<button class="btn btn-out btn-sm" onclick="erledigeTermin('${t.id}')">✓</button>`:''}
-      <button class="btn btn-out btn-sm" onclick="editTermin('${t.id}')">✏️</button>
-      <button class="btn btn-sm" style="background:transparent;border:1px solid var(--red);color:var(--red-l);" onclick="deleteTermin('${t.id}')">🗑</button>
+      ${!t.erledigt?`<button class="btn btn-out btn-sm" onclick="window.erledigeTermin('${t.id}')">✓</button>`:''}
+      <button class="btn btn-out btn-sm" onclick="window.editTermin('${t.id}')">✏️</button>
+      <button class="btn btn-sm" style="background:transparent;border:1px solid var(--red);color:var(--red-l);" onclick="window.deleteTermin('${t.id}')">🗑</button>
     </div>
   </div>`;
 }
@@ -1579,7 +1579,7 @@ function renderBenutzer(){
         <div style="flex:1;"><div style="font-size:12px;font-weight:500;">${b.email}</div>
           <div class="dim" style="font-size:10px;">${b.role==='admin'?'👤 Admin':abt?abt.icon+' '+abt.label:'Keine Rolle'}</div>
         </div>
-        <button class="btn btn-out btn-sm" onclick="deleteBenutzer('${b.id}')">🗑</button>
+        <button class="btn btn-out btn-sm" onclick="window.deleteBenutzer('${b.id}')">🗑</button>
       </div>`;
     });
   }
@@ -1595,7 +1595,7 @@ function renderBenutzer(){
       <option value="admin">👤 Admin (Berufsbildner)</option>
       ${ABTEILUNGEN.map(a=>`<option value="${a.id}">${a.icon} ${a.label}</option>`).join('')}
     </select>
-    <button class="btn btn-gold" style="margin-top:12px;" onclick="saveBenutzer()">✓ Rolle speichern</button>
+    <button class="btn btn-gold" style="margin-top:12px;" onclick="window.saveBenutzer()">✓ Rolle speichern</button>
   </div>`;
 
   document.getElementById('benutzer-content').innerHTML=html;
@@ -1705,7 +1705,7 @@ function renderDB(){
     :S.lehrlinge.map(l=>`<div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--border);">
         <div class="lav" style="background:${l.color||'#555'}">${l.initials}</div>
         <div style="flex:1;font-size:12px;font-weight:500;">${l.vorname} ${l.nachname}<div class="dim" style="font-size:10px;">${l.lj}. Lehrjahr · ${l.start}</div></div>
-        <button class="btn btn-out btn-sm" onclick="deleteLehrling('${l.id}')">🗑</button>
+        <button class="btn btn-out btn-sm" onclick="window.deleteLehrling('${l.id}')">🗑</button>
       </div>`).join('');
   document.getElementById('db-qv-datum').value=S.einstellungen.qvDatum||'2026-07-01';
 }
@@ -1751,10 +1751,8 @@ function renderAll(){
 // ══════════════════════════════════════════════════════════════
 // INIT & WINDOW EXPORTS
 // ══════════════════════════════════════════════════════════════
-document.getElementById('today-badge').textContent=new Date().toLocaleDateString('de-CH',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
-document.getElementById('auth-pw').addEventListener('keydown',e=>{if(e.key==='Enter')login();});
-document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
-
+// DOM-Init läuft nach dem Laden des HTML (defer/module garantiert das,
+// aber querySelectorAll braucht den DOM — sicher mit DOMContentLoaded)
 Object.assign(window,{
   login,register,logout,showTab,selectL,openModal,closeModal,
   setBpSem,toggleLL,toggleLZ,
@@ -1767,6 +1765,15 @@ Object.assign(window,{
   qAsk,kiSend,kiKey,kiResize,saveApiKey,
   addLehrling,deleteLehrling,saveBenutzer,deleteBenutzer,
   exportBackup,importBackup,saveQVDatum,renderDB
+});
+
+// Init nach DOM-Ready
+document.addEventListener('DOMContentLoaded',()=>{
+  const badge=document.getElementById('today-badge');
+  if(badge)badge.textContent=new Date().toLocaleDateString('de-CH',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+  const pw=document.getElementById('auth-pw');
+  if(pw)pw.addEventListener('keydown',e=>{if(e.key==='Enter')window.login();});
+  document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
 });
 </script>
 <style>
@@ -2042,8 +2049,8 @@ textarea.fi{min-height:60px;resize:vertical;}
     <input class="fi" type="password" id="auth-pw" placeholder="Passwort">
     <div class="auth-err" id="auth-err"></div>
     <div style="display:flex;gap:8px;margin-top:14px;">
-      <button class="btn btn-gold" style="flex:1;" onclick="login()">Einloggen</button>
-      <button class="btn btn-out" style="flex:1;" onclick="register()">Registrieren</button>
+      <button class="btn btn-gold" style="flex:1;" onclick="window.login()">Einloggen</button>
+      <button class="btn btn-out" style="flex:1;" onclick="window.register()">Registrieren</button>
     </div>
   </div>
 </div>
@@ -2058,19 +2065,19 @@ textarea.fi{min-height:60px;resize:vertical;}
   <div class="hflex"></div>
   <div style="font-size:11px;color:var(--dim);background:var(--bg2);border:1px solid var(--border);padding:4px 10px;border-radius:20px;" id="today-badge"></div>
   <span style="font-size:11px;color:var(--dim);margin-left:6px;" id="user-email"></span>
-  <button class="btn btn-out btn-sm" style="margin-left:6px;" onclick="logout()">Abmelden</button>
+  <button class="btn btn-out btn-sm" style="margin-left:6px;" onclick="window.logout()">Abmelden</button>
 </header>
 <nav>
-  <div class="tab active" onclick="showTab('overview',this)">📊 Übersicht</div>
-  <div class="tab" onclick="showTab('bildungsplan',this)">📚 Bildungsplan</div>
-  <div class="tab" onclick="showTab('lernberichte',this)">📝 Lernberichte</div>
-  <div class="tab" onclick="showTab('bildungsbericht',this)">📋 Bildungsbericht</div>
-  <div class="tab" onclick="showTab('qv',this)">🎯 QV-Vorbereitung</div>
-  <div class="tab" onclick="showTab('einsatzplan',this)">📅 Einsatzplan</div>
-  <div class="tab" onclick="showTab('termine',this)">🗓 Termine</div>
-  <div class="tab" onclick="showTab('ki',this)">🤖 KI-Assistent</div>
-  <div class="tab" id="tab-benutzer" onclick="showTab('benutzer',this)" style="display:none">👥 Benutzer</div>
-  <div class="tab" onclick="showTab('db',this)">💾 Datenbank</div>
+  <div class="tab active" onclick="window.showTab('overview',this)">📊 Übersicht</div>
+  <div class="tab" onclick="window.showTab('bildungsplan',this)">📚 Bildungsplan</div>
+  <div class="tab" onclick="window.showTab('lernberichte',this)">📝 Lernberichte</div>
+  <div class="tab" onclick="window.showTab('bildungsbericht',this)">📋 Bildungsbericht</div>
+  <div class="tab" onclick="window.showTab('qv',this)">🎯 QV-Vorbereitung</div>
+  <div class="tab" onclick="window.showTab('einsatzplan',this)">📅 Einsatzplan</div>
+  <div class="tab" onclick="window.showTab('termine',this)">🗓 Termine</div>
+  <div class="tab" onclick="window.showTab('ki',this)">🤖 KI-Assistent</div>
+  <div class="tab" id="tab-benutzer" onclick="window.showTab('benutzer',this)" style="display:none">👥 Benutzer</div>
+  <div class="tab" onclick="window.showTab('db',this)">💾 Datenbank</div>
 </nav>
 <main>
 
@@ -2079,8 +2086,8 @@ textarea.fi{min-height:60px;resize:vertical;}
   <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
     <div><div class="pg-title">Übersicht</div><div class="pg-sub">Aktueller Ausbildungsstand</div></div>
     <div style="display:flex;gap:7px;">
-      <button class="btn btn-out" onclick="openModal('lehrling')">+ Lehrling</button>
-      <button class="btn btn-gold" onclick="openNewBericht()">+ Lernbericht</button>
+      <button class="btn btn-out" onclick="window.openModal('lehrling')">+ Lehrling</button>
+      <button class="btn btn-gold" onclick="window.openNewBericht()">+ Lernbericht</button>
     </div>
   </div>
   <div class="lb" id="ov-lb"></div>
@@ -2112,7 +2119,7 @@ textarea.fi{min-height:60px;resize:vertical;}
 <div class="section" id="sec-lernberichte">
   <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">
     <div><div class="pg-title">Lernberichte</div><div class="pg-sub">Klicken zum Öffnen · Bearbeiten · Anhänge zu Firebase Storage</div></div>
-    <button class="btn btn-gold" onclick="openNewBericht()">+ Neu</button>
+    <button class="btn btn-gold" onclick="window.openNewBericht()">+ Neu</button>
   </div>
   <div class="lb" id="lb-lb"></div>
   <div class="g2">
@@ -2176,13 +2183,13 @@ textarea.fi{min-height:60px;resize:vertical;}
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
       <div class="card-t" id="ep-label">Einsatzplan</div>
       <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;">
-        <button class="ep-view-btn active" id="epv-month" onclick="setEpView('month')">Monat</button>
-        <button class="ep-view-btn" id="epv-week" onclick="setEpView('week')">Woche</button>
-        <button class="ep-view-btn" id="epv-day" onclick="setEpView('day')">Tag</button>
+        <button class="ep-view-btn active" id="epv-month" onclick="window.setEpView('month')">Monat</button>
+        <button class="ep-view-btn" id="epv-week" onclick="window.setEpView('week')">Woche</button>
+        <button class="ep-view-btn" id="epv-day" onclick="window.setEpView('day')">Tag</button>
         <div style="width:1px;height:18px;background:var(--border);margin:0 3px;"></div>
-        <button class="btn btn-out btn-sm" onclick="changeEp(-1)">←</button>
-        <button class="btn btn-out btn-sm" onclick="resetEp()">Heute</button>
-        <button class="btn btn-out btn-sm" onclick="changeEp(1)">→</button>
+        <button class="btn btn-out btn-sm" onclick="window.changeEp(-1)">←</button>
+        <button class="btn btn-out btn-sm" onclick="window.resetEp()">Heute</button>
+        <button class="btn btn-out btn-sm" onclick="window.changeEp(1)">→</button>
       </div>
     </div>
     <div class="ep-palette" id="ep-palette"></div>
@@ -2194,7 +2201,7 @@ textarea.fi{min-height:60px;resize:vertical;}
 <div class="section" id="sec-termine">
   <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
     <div><div class="pg-title">Termine & Abmachungen</div><div class="pg-sub">Fristen, Lernziele, Gespräche und Vereinbarungen pro Lernende/r</div></div>
-    <button class="btn btn-gold" onclick="openNewTermin()">+ Termin</button>
+    <button class="btn btn-gold" onclick="window.openNewTermin()">+ Termin</button>
   </div>
   <div class="lb" id="tm-lb"></div>
   <div class="g2">
@@ -2219,23 +2226,23 @@ textarea.fi{min-height:60px;resize:vertical;}
   <div class="card" style="padding:0;overflow:hidden;">
     <div class="ki-top">
       <span style="font-size:11px;color:var(--dim);white-space:nowrap;">API-Key:</span>
-      <input type="password" class="fi" id="ki-key" placeholder="sk-ant-..." style="margin:0;" onchange="saveApiKey()">
+      <input type="password" class="fi" id="ki-key" placeholder="sk-ant-..." style="margin:0;" onchange="window.saveApiKey()">
       <span id="ki-status" style="font-size:11px;"></span>
     </div>
     <div class="ki-qb-row">
-      <button class="ki-qb" onclick="qAsk('Was sind die wichtigsten LZ im HKB 1?')">HKB 1 LZ</button>
-      <button class="ki-qb" onclick="qAsk('Wie bereite ich optimal auf das PEX-Fachgespräch vor?')">PEX Tipps</button>
-      <button class="ki-qb" onclick="qAsk('Was sind die Unterschiede zwischen CPEX und PEX?')">CPEX vs PEX</button>
-      <button class="ki-qb" onclick="qAsk('Erkläre die Taxonomiestufen K1-K6 mit Hotel-Beispielen.')">Taxonomie</button>
-      <button class="ki-qb" onclick="qAsk('Wie führe ich ein gutes Semestergespräch?')">Semestergespräch</button>
+      <button class="ki-qb" onclick="window.qAsk('Was sind die wichtigsten LZ im HKB 1?')">HKB 1 LZ</button>
+      <button class="ki-qb" onclick="window.qAsk('Wie bereite ich optimal auf das PEX-Fachgespräch vor?')">PEX Tipps</button>
+      <button class="ki-qb" onclick="window.qAsk('Was sind die Unterschiede zwischen CPEX und PEX?')">CPEX vs PEX</button>
+      <button class="ki-qb" onclick="window.qAsk('Erkläre die Taxonomiestufen K1-K6 mit Hotel-Beispielen.')">Taxonomie</button>
+      <button class="ki-qb" onclick="window.qAsk('Wie führe ich ein gutes Semestergespräch?')">Semestergespräch</button>
     </div>
     <div class="ki-wrap">
       <div class="ki-msgs" id="ki-msgs">
         <div class="ki-msg assistant">👋 <strong>Willkommen!</strong> Ich kenne den Bildungsplan Hotel-KoFa EFZ mit allen 4 HKBs, 21 Handlungskompetenzen und allen Leistungszielen. Gib deinen Anthropic API-Key ein und stelle Fragen.</div>
       </div>
       <div class="ki-in-row">
-        <textarea class="ki-ta" id="ki-in" placeholder="Frage zur Ausbildung…" onkeydown="kiKey(event)" oninput="kiResize(this)"></textarea>
-        <button class="btn btn-gold" onclick="kiSend()" style="align-self:flex-end;">↑</button>
+        <textarea class="ki-ta" id="ki-in" placeholder="Frage zur Ausbildung…" onkeydown="window.kiKey(event)" oninput="window.kiResize(this)"></textarea>
+        <button class="btn btn-gold" onclick="window.kiSend()" style="align-self:flex-end;">↑</button>
       </div>
     </div>
   </div>
@@ -2257,14 +2264,14 @@ textarea.fi{min-height:60px;resize:vertical;}
       <div class="card" style="margin-bottom:14px;">
         <div class="card-t">Lernende verwalten</div>
         <div id="db-lehrlinge"></div>
-        <button class="btn btn-out" style="width:100%;margin-top:10px;" onclick="openModal('lehrling')">+ Lehrling hinzufügen</button>
+        <button class="btn btn-out" style="width:100%;margin-top:10px;" onclick="window.openModal('lehrling')">+ Lehrling hinzufügen</button>
       </div>
       <div class="card">
         <div class="card-t">QV-Datum</div>
         <div class="card-s">Stichtag für den Countdown</div>
         <div style="display:flex;gap:8px;">
           <input class="fi" type="date" id="db-qv-datum" style="flex:1;">
-          <button class="btn btn-gold" onclick="saveQVDatum()">Speichern</button>
+          <button class="btn btn-gold" onclick="window.saveQVDatum()">Speichern</button>
         </div>
       </div>
     </div>
@@ -2275,9 +2282,9 @@ textarea.fi{min-height:60px;resize:vertical;}
       </div>
       <div class="card">
         <div class="card-t">Backup</div>
-        <button class="btn btn-gold" style="width:100%;margin-bottom:8px;" onclick="exportBackup()">⬇ Export (JSON)</button>
-        <input type="file" id="import-f" accept=".json" style="display:none;" onchange="importBackup(event)">
-        <button class="btn btn-out" style="width:100%;" onclick="document.getElementById('import-f').click()">📁 Import</button>
+        <button class="btn btn-gold" style="width:100%;margin-bottom:8px;" onclick="window.exportBackup()">⬇ Export (JSON)</button>
+        <input type="file" id="import-f" accept=".json" style="display:none;" onchange="window.importBackup(event)">
+        <button class="btn btn-out" style="width:100%;" onclick="window.document.getElementById('import-f').click()">📁 Import</button>
       </div>
     </div>
   </div>
@@ -2297,8 +2304,8 @@ textarea.fi{min-height:60px;resize:vertical;}
     <label class="fl">Ausbildungsstart</label>
     <input class="fi" type="month" id="nl-start" value="2024-08">
     <div class="modal-actions">
-      <button class="btn btn-out" onclick="closeModal('lehrling')">Abbrechen</button>
-      <button class="btn btn-gold" onclick="addLehrling()">✓ Hinzufügen</button>
+      <button class="btn btn-out" onclick="window.closeModal('lehrling')">Abbrechen</button>
+      <button class="btn btn-gold" onclick="window.addLehrling()">✓ Hinzufügen</button>
     </div>
   </div>
 </div>
@@ -2327,8 +2334,8 @@ textarea.fi{min-height:60px;resize:vertical;}
     <label class="fl">Verbesserungsmöglichkeiten</label>
     <textarea class="fi" id="nb-verb" placeholder="Entwicklungsfelder…"></textarea>
     <div class="modal-actions">
-      <button class="btn btn-out" onclick="closeModal('bericht')">Abbrechen</button>
-      <button class="btn btn-gold" onclick="saveBericht()">✓ Speichern</button>
+      <button class="btn btn-out" onclick="window.closeModal('bericht')">Abbrechen</button>
+      <button class="btn btn-gold" onclick="window.saveBericht()">✓ Speichern</button>
     </div>
   </div>
 </div>
@@ -2352,8 +2359,8 @@ textarea.fi{min-height:60px;resize:vertical;}
     <label class="fl">Notizen (optional)</label>
     <textarea class="fi" id="tm-beschr" placeholder="Details…"></textarea>
     <div class="modal-actions">
-      <button class="btn btn-out" onclick="closeModal('termin')">Abbrechen</button>
-      <button class="btn btn-gold" onclick="saveTermin()">✓ Speichern</button>
+      <button class="btn btn-out" onclick="window.closeModal('termin')">Abbrechen</button>
+      <button class="btn btn-gold" onclick="window.saveTermin()">✓ Speichern</button>
     </div>
   </div>
 </div>
@@ -2368,8 +2375,8 @@ textarea.fi{min-height:60px;resize:vertical;}
     <label class="fl">Aufgaben (eine pro Zeile)</label>
     <textarea class="fi" id="sz-aufgaben" style="min-height:100px;" placeholder="Aufgabe 1&#10;Aufgabe 2&#10;Aufgabe 3"></textarea>
     <div class="modal-actions">
-      <button class="btn btn-out" onclick="closeModal('szenario')">Abbrechen</button>
-      <button class="btn btn-gold" onclick="saveSzenario()">✓ Erstellen</button>
+      <button class="btn btn-out" onclick="window.closeModal('szenario')">Abbrechen</button>
+      <button class="btn btn-gold" onclick="window.saveSzenario()">✓ Erstellen</button>
     </div>
   </div>
 </div>
@@ -2381,8 +2388,8 @@ textarea.fi{min-height:60px;resize:vertical;}
     <label class="fl">Aufgabentext</label>
     <textarea class="fi" id="add-aufgabe-text" placeholder="Beschreibe die Übungsaufgabe…"></textarea>
     <div class="modal-actions">
-      <button class="btn btn-out" onclick="closeModal('aufgabe')">Abbrechen</button>
-      <button class="btn btn-gold" onclick="saveAufgabe()">✓ Hinzufügen</button>
+      <button class="btn btn-out" onclick="window.closeModal('aufgabe')">Abbrechen</button>
+      <button class="btn btn-gold" onclick="window.saveAufgabe()">✓ Hinzufügen</button>
     </div>
   </div>
 </div>
