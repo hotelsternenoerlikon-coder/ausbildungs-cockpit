@@ -1306,10 +1306,12 @@ function resetEp(){
   else epDayOff=0;
   renderEinsatz();
 }
-function setEpView(v){epView=v;document.querySelectorAll('.ep-view-btn').forEach(b=>b.classList.remove('active'));document.getElementById('epv-'+v)?.classList.add('active');renderEinsatz();}
+function setEpView(v){epView=v;document.querySelectorAll('.ep-view-btn').forEach(b=>b.classList.remove('active'));document.getElementById('epv-'+v)?.classList.add('active');}
 
 function renderEinsatz(){
-  setEpView(epView);
+  // Update view buttons without recursion
+  document.querySelectorAll('.ep-view-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('epv-'+epView)?.classList.add('active');
   if(epView==='month')renderEinsatzMonth();
   else if(epView==='week')renderEinsatzWeek();
   else renderEinsatzDay();
