@@ -611,7 +611,7 @@ function renderBildungsplan(){
     const hkbLZKs=filteredHKs.flatMap(hk=>hk.lzFiltered.map(l2=>l2.k));
     const hkbDone=hkbLZKs.filter(k=>lz[k]).length;
     html+=`<div class="hkb-block">
-      <div class="hkb-hd" onclick="window.this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')" style="border-left:3px solid ${hkb.color}">
+      <div class="hkb-hd" onclick="window.toggleAccordion(this)" style="border-left:3px solid ${hkb.color}">
         <span class="hkb-code" style="color:${hkb.color}">${hkb.code}</span>
         <span class="hkb-t">${hkb.titel}</span>
         <span class="dim" style="font-size:11px;">${hkbDone}/${hkbLZKs.length} LZ</span>
@@ -649,6 +649,11 @@ function renderBildungsplan(){
 }
 function setBpSem(n){bpSemFilter=n;renderBildungsplan();}
 function toggleLL(id){document.getElementById(id)?.classList.toggle('open');}
+function toggleAccordion(el){
+  if(!el||!el.nextElementSibling)return;
+  el.classList.toggle('open');
+  el.nextElementSibling.classList.toggle('open');
+}
 
 async function toggleLZ(lid,key,rowEl){
   if(!S.lzStatus[lid])S.lzStatus[lid]={};
@@ -789,9 +794,9 @@ function showBericht(bid){
       <span class="dim">${fmtSize(a.size||0)}</span>
       <button class="btn btn-out btn-sm" onclick="window.delAtt('${bid}','${a.name}','${encodeURIComponent(a.path||'')}')">✕</button>
     </div>`).join('')}</div>`:'<div class="dim" style="font-size:12px;margin:8px 0;">Noch keine Anhänge.</div>'}
-    <div class="att-zone" onclick="window.document.getElementById('att-f').click()"
-      ondragover="window.event.preventDefault();this.classList.add('drag')"
-      ondragleave="window.this.classList.remove('drag')"
+    <div class="att-zone" onclick="document.getElementById('att-f').click()"
+      ondragover="event.preventDefault();event.currentTarget.classList.add('drag')"
+      ondragleave="event.currentTarget.classList.remove('drag')"
       ondrop="window.dropAtt(event,'${bid}')">☁️ PDF oder Bild ablegen / klicken</div>
     <input type="file" id="att-f" multiple accept=".pdf,image/*" style="display:none" onchange="window.uploadAtt(event,'${bid}')">`;
 }
@@ -881,7 +886,7 @@ function renderBBAdmin(bew){
     const ab=bew[`abt_${abt.id}`]||{};
     const hasData=ALL_BB_ITEMS.some(item=>ab[item.k]);
     html+=`<div class="abt-section">
-      <div class="abt-hd" onclick="window.this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+      <div class="abt-hd" onclick="window.toggleAccordion(this)">
         <span>${abt.icon} ${abt.label}</span>
         <span>${hasData?'<span class="tag tg">Ausgefüllt</span>':'<span class="tag tr">Ausstehend</span>'}</span>
         <span class="chev">▶</span>
@@ -1756,7 +1761,7 @@ function renderAll(){
 // aber querySelectorAll braucht den DOM — sicher mit DOMContentLoaded)
 Object.assign(window,{
   login,register,logout,showTab,selectL,openModal,closeModal,
-  setBpSem,toggleLL,toggleLZ,
+  setBpSem,toggleLL,toggleAccordion,toggleLZ,
   openNewBericht,editBericht,saveBericht,showBericht,visiereBericht,deleteBericht,
   uploadAtt,dropAtt,delAtt,
   renderBildungsbericht,setAbtGrade,setAbtComment,saveAbtBew,setFinalGrade,setFinalComment,saveFinalBew,generateBB,
@@ -2285,7 +2290,7 @@ textarea.fi{min-height:60px;resize:vertical;}
         <div class="card-t">Backup</div>
         <button class="btn btn-gold" style="width:100%;margin-bottom:8px;" onclick="window.exportBackup()">⬇ Export (JSON)</button>
         <input type="file" id="import-f" accept=".json" style="display:none;" onchange="window.importBackup(event)">
-        <button class="btn btn-out" style="width:100%;" onclick="window.document.getElementById('import-f').click()">📁 Import</button>
+        <button class="btn btn-out" style="width:100%;" onclick="document.getElementById('import-f').click()">📁 Import</button>
       </div>
     </div>
   </div>
