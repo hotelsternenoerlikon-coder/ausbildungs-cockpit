@@ -360,7 +360,7 @@ let user = null, userProfile = null; // userProfile = {role:'admin'|'abt', abtei
 let currentLid = null;
 let bpSemFilter = 0;
 let currentBerichtId = null;
-let epView = 'month'; // 'month'|'week'|'day'
+let epView = 'year'; // 'year'|'month'|'week'|'day'
 let epMonthOff = 0, epWeekOff = 0, epDayOff = 0;
 let epSelectedCell = null;
 let S = {
@@ -385,21 +385,48 @@ const upd = async(p,d)=>updateDoc(doc(db,p),d);
 
 async function loadAll() {
   const [l,b,lz,bew,ep,t,ein,sz,ben] = await Promise.all([
-    col(`users/${uid()}/lehrlinge`),col(`users/${uid()}/lernberichte`),
-    rj(`users/${uid()}/lzStatus/data`),rj(`users/${uid()}/bewertungen/data`),
-    rj(`users/${uid()}/einsatzplan/data`),col(`users/${uid()}/termine`),
-    rj(`users/${uid()}/einstellungen/data`),
-    col(`users/${uid()}/szenarien`),
-    col(`users/${uid()}/benutzer`)
+    col('users/'+uid()+'/lehrlinge'),col('users/'+uid()+'/lernberichte'),
+    rj('users/'+uid()+'/lzStatus/data'),rj('users/'+uid()+'/bewertungen/data'),
+    rj('users/'+uid()+'/einsatzplan/data'),col('users/'+uid()+'/termine'),
+    rj('users/'+uid()+'/einstellungen/data'),
+    col('users/'+uid()+'/szenarien'),
+    col('users/'+uid()+'/benutzer')
   ]);
   S.lehrlinge=l||[];S.lernberichte=b||[];S.lzStatus=lz||{};
   S.bewertungen=bew||{};S.einsatzplan=ep||{};S.termine=t||[];
   S.einstellungen=ein||{apiKey:'',qvDatum:'2026-07-01'};
   S.szenarien=sz||[];S.benutzer=ben||[];
   if(!currentLid&&S.lehrlinge.length)currentLid=S.lehrlinge[0].id;
-  // Lade eigenes Profil
-  const prof=await rj(`profiles/${uid()}`);
-  userProfile=prof||{role:'admin',abteilung:null};
+  // Lade Pending-Benutzer (nur Admin)
+  if(userProfile?.role==='admin'){
+    try{
+      // getDocs auf emailRoles Collection - filtere pending
+      const pendSnap=await getDocs(collection(db,'emailRoles'));
+      S.pendingUsers=[];
+      pendSnap.forEach(d=>{
+        const dat=d.data();
+        if(dat.role==='pending') S.pendingUsers.push({emailKey:d.id,...dat});
+      });
+    }catch(e){S.pendingUsers=[];}
+  }
+}
+
+// Nicht-Admin liest Daten vom Admin-Account
+async function loadAllAsAbt(adminUid){
+  if(!adminUid)return;
+  const [l,b,lz,bew,ep,t] = await Promise.all([
+    col('users/'+adminUid+'/lehrlinge'),
+    col('users/'+adminUid+'/lernberichte'),
+    rj('users/'+adminUid+'/lzStatus/data'),
+    rj('users/'+adminUid+'/bewertungen/data'),
+    rj('users/'+adminUid+'/einsatzplan/data'),
+    col('users/'+adminUid+'/termine')
+  ]);
+  // Schreibrechte bleiben beim Admin, wir lesen nur
+  S._adminUid=adminUid;
+  S.lehrlinge=l||[];S.lernberichte=b||[];S.lzStatus=lz||{};
+  S.bewertungen=bew||{};S.einsatzplan=ep||{};S.termine=t||[];
+  if(!currentLid&&S.lehrlinge.length)currentLid=S.lehrlinge[0].id;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -454,14 +481,25 @@ function fileIcon(n=''){return/\.pdf$/i.test(n)?'📄':/\.(jpg|jpeg|png|gif|webp
 onAuthStateChanged(auth,async u=>{
   user=u;
   if(u){
+    showLoading(true);
+    const allowed=await loadMyRole();
+    if(!allowed){showLoading(false);return;}
+    await loadAll();
+    showLoading(false);
     document.getElementById('auth-screen').style.display='none';
     document.getElementById('app').style.display='block';
     document.getElementById('user-email').textContent=u.email;
-    showLoading(true);await loadAll();showLoading(false);
+    // Theme wiederherstellen
+    const savedTheme=localStorage.getItem('kofa-theme')||'dark';
+    applyTheme(savedTheme);
     renderAll();
-    // Zeige/verstecke Admin-Menü
     const isAdmin=userProfile?.role==='admin';
     document.getElementById('tab-benutzer').style.display=isAdmin?'':'none';
+    // Nicht-Admin: Daten vom Admin laden
+    if(!isAdmin && userProfile?.adminUid){
+      await loadAllAsAbt(userProfile.adminUid);
+      renderAll();
+    }
   }else{
     document.getElementById('auth-screen').style.display='flex';
     document.getElementById('app').style.display='none';
@@ -477,8 +515,15 @@ async function register(){
   const e=document.getElementById('auth-email').value.trim(),p=document.getElementById('auth-pw').value;
   const err=document.getElementById('auth-err');err.textContent='';
   if(p.length<6){err.textContent='Passwort mind. 6 Zeichen.';return;}
-  try{await createUserWithEmailAndPassword(auth,e,p);}
-  catch(ex){err.textContent=ex.code==='auth/email-already-in-use'?'E-Mail bereits registriert.':ex.message;}
+  try{
+    const cred=await createUserWithEmailAndPassword(auth,e,p);
+    // Registrierung als "pending" markieren — Admin muss freigeben
+    const emailKey=e.replace(/\./g,'_').replace(/@/g,'_at_');
+    await wj('emailRoles/'+emailKey,{email:e,role:'pending',abteilung:null,uid:cred.user.uid});
+    await signOut(auth);
+    document.getElementById('auth-err').style.color='var(--green-l)';
+    err.textContent='✓ Registriert. Bitte warte auf die Freigabe durch den Admin.';
+  }catch(ex){err.textContent=ex.code==='auth/email-already-in-use'?'E-Mail bereits registriert.':ex.message;}
 }
 async function logout(){
   await signOut(auth);
@@ -531,13 +576,14 @@ function renderOverview(){
   const lzP=calcLZProg(currentLid);
   const hkSt=calcHKStatus(currentLid);
   const hkDone=Object.values(hkSt).filter(v=>v===2).length;
-  const days=Math.max(0,Math.ceil((new Date(S.einstellungen.qvDatum||'2026-07-01')-new Date())/86400000));
+  const qvD=l?.qvDatum||S.einstellungen.qvDatum||'2026-07-01';
+  const days=Math.max(0,Math.ceil((new Date(qvD)-new Date())/86400000));
 
   document.getElementById('ov-stats').innerHTML=`
     <div class="sc" style="--a:#C9A84C"><div class="sc-n" style="color:#C9A84C">${l.lj}.</div><div class="sc-l">Lehrjahr</div><div class="dim sc-s">Start ${l.start}</div></div>
     <div class="sc" style="--a:#5B8C5A"><div class="sc-n" style="color:#7EC07E">${b.filter(x=>x.status==='visiert').length}/${b.length}</div><div class="sc-l">Lernberichte</div><div class="dim sc-s">visiert / total</div></div>
     <div class="sc" style="--a:#3A6FA0"><div class="sc-n" style="color:#5A8FC0">${lzP.pct}%</div><div class="sc-l">Leistungsziele</div><div class="dim sc-s">${lzP.done}/${lzP.total} · ${hkDone}/21 HK ✓</div></div>
-    <div class="sc" style="--a:#C9A84C"><div class="sc-n" style="color:#C9A84C">${days}</div><div class="sc-l">Tage bis QV</div><div class="dim sc-s">${S.einstellungen.qvDatum||'2026-07-01'}</div></div>`;
+    <div class="sc" style="--a:#C9A84C"><div class="sc-n" style="color:#C9A84C">${days}</div><div class="sc-l">Tage bis QV</div><div class="dim sc-s">${qvD}</div></div>`;
 
   // Semester-Fortschritt
   let semHtml='<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px;">';
@@ -1049,15 +1095,16 @@ function setAbtComment(abtId,key,val){
   S.bewertungen[currentLid][akey][key+'_c']=val;
 }
 async function saveAbtBew(abtId){
-  // Auch selbst_bem
   const bemEl=document.getElementById('abt-selbst-bem');
   if(bemEl){
-    const akey=`abt_${abtId}`;
+    const akey='abt_'+abtId;
     if(!S.bewertungen[currentLid])S.bewertungen[currentLid]={};
     if(!S.bewertungen[currentLid][akey])S.bewertungen[currentLid][akey]={};
     S.bewertungen[currentLid][akey].selbst_bem=bemEl.value;
   }
-  await wj(`users/${uid()}/bewertungen/data`,S.bewertungen);
+  // Nicht-Admin schreibt auf Admin-Pfad (Firestore Rules: allow write wenn adminUid matches)
+  const targetUid=S._adminUid||uid();
+  await wj('users/'+targetUid+'/bewertungen/data',S.bewertungen);
   toast('✓ Bewertung gespeichert');
 }
 
@@ -1145,7 +1192,9 @@ function renderQV(){
   if(!currentLid)return;
   const hkSt=calcHKStatus(currentLid);
   const lzP=calcLZProg(currentLid);
-  const days=Math.max(0,Math.ceil((new Date(S.einstellungen.qvDatum||'2026-07-01')-new Date())/86400000));
+  const lCur=S.lehrlinge.find(x=>x.id===currentLid);
+  const qvD=lCur?.qvDatum||S.einstellungen.qvDatum||'2026-07-01';
+  const days=Math.max(0,Math.ceil((new Date(qvD)-new Date())/86400000));
   document.getElementById('qv-days').textContent=days;
   document.getElementById('qv-lz-bar').style.width=lzP.pct+'%';
   document.getElementById('qv-lz-pct').textContent=lzP.pct+'%';
@@ -1299,14 +1348,17 @@ function dk(d){return d.toISOString().slice(0,10);}
 function getSlot(lid,date){return(S.einsatzplan[lid]||{})[date]||null;}
 function setSlot(lid,date,k){if(!S.einsatzplan[lid])S.einsatzplan[lid]={};S.einsatzplan[lid][date]=k;}
 
+let epYearOff=0;
 function changeEp(dir){
-  if(epView==='month')epMonthOff+=dir;
+  if(epView==='year')epYearOff+=dir;
+  else if(epView==='month')epMonthOff+=dir;
   else if(epView==='week')epWeekOff+=dir;
   else epDayOff+=dir;
   renderEinsatz();
 }
 function resetEp(){
-  if(epView==='month')epMonthOff=0;
+  if(epView==='year')epYearOff=0;
+  else if(epView==='month')epMonthOff=0;
   else if(epView==='week')epWeekOff=0;
   else epDayOff=0;
   renderEinsatz();
@@ -1314,13 +1366,226 @@ function resetEp(){
 function setEpView(v){epView=v;document.querySelectorAll('.ep-view-btn').forEach(b=>b.classList.remove('active'));document.getElementById('epv-'+v)?.classList.add('active');}
 
 function renderEinsatz(){
-  // Update view buttons without recursion
   document.querySelectorAll('.ep-view-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('epv-'+epView)?.classList.add('active');
-  if(epView==='month')renderEinsatzMonth();
+  if(epView==='year')renderEinsatzYear();
+  else if(epView==='month')renderEinsatzMonth();
   else if(epView==='week')renderEinsatzWeek();
   else renderEinsatzDay();
   renderEpPalette();
+}
+
+function renderEinsatzYear(){
+  if(!currentLid){document.getElementById('ep-main').innerHTML='<div class="dim" style="padding:20px;text-align:center;">Bitte Lernende/n auswählen</div>';return;}
+  const lid=currentLid;
+  const l=S.lehrlinge.find(x=>x.id===lid);
+  const year=new Date().getFullYear()+epYearOff;
+  document.getElementById('ep-label').textContent=`Jahresplan ${year} · ${l?.vorname||''} ${l?.nachname||''}`;
+
+  // Berechne alle KW des Jahres
+  const weeks=[];
+  for(let kw=1;kw<=53;kw++){
+    // Montag der KW berechnen (ISO)
+    const jan4=new Date(year,0,4);
+    const mon=new Date(jan4);
+    mon.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(kw-1)*7);
+    if(mon.getFullYear()>year)break;
+    // Freitag
+    const fri=new Date(mon);fri.setDate(mon.getDate()+4);
+    // Check ob KW in diesem Jahr liegt
+    if(mon.getFullYear()<year && fri.getFullYear()<year)continue;
+    weeks.push({kw,mon:new Date(mon),fri:new Date(fri)});
+  }
+
+  // Für jede KW: welche Abteilungen sind eingetragen? (Mo-Fr)
+  function getWeekAbts(lid,mon){
+    const abts=new Set();
+    for(let i=0;i<7;i++){
+      const d=new Date(mon);d.setDate(mon.getDate()+i);
+      const k=getSlot(lid,dk(d));
+      if(k)abts.add(k);
+    }
+    return [...abts];
+  }
+
+  let html=`<div style="overflow-x:auto;">
+    <table class="year-table">
+      <thead><tr>
+        <th style="width:50px;">KW</th>
+        <th>Zeitraum</th>
+        <th>Einsatzbereich(e)</th>
+        <th style="width:80px;">Aktionen</th>
+      </tr></thead><tbody>`;
+
+  // Gruppiere aufeinanderfolgende KW mit gleichen Abteilungen
+  let i=0;
+  while(i<weeks.length){
+    const w=weeks[i];
+    const abts=getWeekAbts(lid,w.mon);
+    const abtsKey=abts.sort().join(',');
+    // Wie viele folgende KW haben dieselbe Belegung?
+    let span=1;
+    while(i+span<weeks.length){
+      const next=weeks[i+span];
+      const nextAbts=getWeekAbts(lid,next.mon).sort().join(',');
+      if(nextAbts===abtsKey && abtsKey!=='')span++;
+      else break;
+    }
+    const wEnd=weeks[Math.min(i+span-1,weeks.length-1)];
+    const kwLabel=span>1?`KW ${w.kw}–${wEnd.kw}`:`KW ${w.kw}`;
+    const dateLabel=w.mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'})+'–'+wEnd.fri.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit',year:'2-digit'});
+    const abtPills=abts.length?abts.map(k=>{const a=ABTS.find(x=>x.k===k);return a?`<span class="ep-mini-btn ${a.cls}" style="font-size:10px;">${a.icon} ${a.l}</span>`:''}).join(''):'<span class="dim" style="font-size:11px;">— nicht geplant</span>';
+
+    html+=`<tr class="year-row ${abts.length?'':'empty-row'}" id="yr-row-${w.kw}">
+      <td><strong>${kwLabel}</strong></td>
+      <td style="font-size:11px;color:var(--dim);">${dateLabel}</td>
+      <td><div style="display:flex;flex-wrap:wrap;gap:3px;">${abtPills}</div></td>
+      <td><button class="btn btn-out btn-sm" onclick="window.openYearEdit(${w.kw},${year})">✏️</button></td>
+    </tr>`;
+    i+=span;
+  }
+
+  html+=`</tbody></table></div>
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+      <button class="btn btn-gold" onclick="window.exportJahresplan()">📄 PDF Export</button>
+      <button class="btn btn-out" onclick="window.openYearBulk(${year})">📋 Mehrere KW auf einmal planen</button>
+    </div>`;
+
+  document.getElementById('ep-main').innerHTML=html;
+}
+
+let yearEditKW=null,yearEditYear=null;
+function openYearEdit(kw,year){
+  yearEditKW=kw;yearEditYear=year;
+  const lid=currentLid;
+  // Berechne Montag der KW
+  const jan4=new Date(year,0,4);
+  const mon=new Date(jan4);
+  mon.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(kw-1)*7);
+  // Zeige aktuelle Belegung + Palette
+  const modal=document.getElementById('modal-year-edit');
+  document.getElementById('ye-kw-lbl').textContent='KW '+kw+' · '+mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit',year:'numeric'})+' – ';
+  const fri=new Date(mon);fri.setDate(mon.getDate()+4);
+  document.getElementById('ye-kw-lbl').textContent='KW '+kw+' ('+mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'})+'–'+fri.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit',year:'2-digit'})+')';
+  // Current selection
+  const cur=new Set();
+  for(let i=0;i<7;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);const k=getSlot(lid,dk(d));if(k)cur.add(k);}
+  document.getElementById('ye-palette').innerHTML=ABTS.map(a=>`
+    <div class="ye-abt-btn ep-mini-btn ${a.cls} ${cur.has(a.k)?'ye-sel':''}" 
+      onclick="window.toggleYeAbt(this,'${a.k}')" data-k="${a.k}">${a.icon} ${a.l}</div>`).join('');
+  openModal('year-edit');
+}
+
+function toggleYeAbt(el,k){el.classList.toggle('ye-sel');}
+
+async function saveYearEdit(){
+  const kw=yearEditKW,year=yearEditYear,lid=currentLid;
+  const jan4=new Date(year,0,4);
+  const mon=new Date(jan4);
+  mon.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(kw-1)*7);
+  const selected=[...document.querySelectorAll('.ye-abt-btn.ye-sel')].map(el=>el.dataset.k);
+  // Für jeden Tag Mo-Fr setzen
+  for(let i=0;i<5;i++){
+    const d=new Date(mon);d.setDate(mon.getDate()+i);
+    const dkey=dk(d);
+    if(!S.einsatzplan[lid])S.einsatzplan[lid]={};
+    if(selected.length===0){delete S.einsatzplan[lid][dkey];}
+    else{S.einsatzplan[lid][dkey]=selected[0];} // Primäre Abteilung für Einzelfeld
+    // Mehrere: als Array in einem Sonderfeld speichern
+    if(selected.length>1) S.einsatzplan[lid][dkey+'_multi']=selected;
+    else delete S.einsatzplan[lid][dkey+'_multi'];
+  }
+  await wj('users/'+uid()+'/einsatzplan/data',S.einsatzplan);
+  closeModal('year-edit');toast('✓ KW '+kw+' gespeichert');renderEinsatzYear();
+}
+
+function openYearBulk(year){
+  document.getElementById('yb-year').textContent=year;
+  document.getElementById('yb-kw-von').value=1;
+  document.getElementById('yb-kw-bis').value=4;
+  document.getElementById('yb-palette').innerHTML=ABTS.map(a=>`
+    <div class="ye-abt-btn ep-mini-btn ${a.cls}" onclick="window.toggleYeAbt(this,'${a.k}')" data-k="${a.k}">${a.icon} ${a.l}</div>`).join('');
+  openModal('year-bulk');
+}
+
+async function saveYearBulk(){
+  const year=parseInt(document.getElementById('yb-year').textContent);
+  const von=parseInt(document.getElementById('yb-kw-von').value);
+  const bis=parseInt(document.getElementById('yb-kw-bis').value);
+  const selected=[...document.querySelectorAll('#yb-palette .ye-abt-btn.ye-sel')].map(el=>el.dataset.k);
+  if(!selected.length){toast('Bitte Abteilung wählen','red');return;}
+  if(von>bis){toast('Von-KW muss ≤ Bis-KW sein','red');return;}
+  const lid=currentLid;
+  for(let kw=von;kw<=bis;kw++){
+    const jan4=new Date(year,0,4);
+    const mon=new Date(jan4);
+    mon.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(kw-1)*7);
+    for(let i=0;i<5;i++){
+      const d=new Date(mon);d.setDate(mon.getDate()+i);
+      const dkey=dk(d);
+      if(!S.einsatzplan[lid])S.einsatzplan[lid]={};
+      S.einsatzplan[lid][dkey]=selected[0];
+      if(selected.length>1) S.einsatzplan[lid][dkey+'_multi']=selected;
+    }
+  }
+  await wj('users/'+uid()+'/einsatzplan/data',S.einsatzplan);
+  closeModal('year-bulk');toast(`✓ KW ${von}–${bis} gespeichert`);renderEinsatzYear();
+}
+
+function exportJahresplan(){
+  const lid=currentLid;
+  const l=S.lehrlinge.find(x=>x.id===lid);
+  const year=new Date().getFullYear()+epYearOff;
+  // Berechne 3-Jahres-Plan
+  const startYear=l?.start?parseInt(l.start.substring(0,4)):year;
+  const years=[startYear,startYear+1,startYear+2];
+  
+  let printHtml=`<html><head><meta charset="UTF-8"><title>Einsatzplan ${l?.vorname} ${l?.nachname}</title>
+  <style>
+    body{font-family:Arial,sans-serif;font-size:10px;color:#1a1a1a;margin:15mm;}
+    h1{font-size:14px;margin-bottom:2px;}
+    h2{font-size:11px;color:#555;margin-top:12px;margin-bottom:4px;border-bottom:1px solid #ccc;padding-bottom:2px;}
+    table{width:100%;border-collapse:collapse;margin-bottom:10px;}
+    th{background:#f0ebe0;font-size:9px;padding:4px 6px;border:1px solid #ccc;text-align:left;}
+    td{padding:3px 6px;border:1px solid #ddd;font-size:9px;vertical-align:middle;}
+    .empty{color:#aaa;}
+    .pill{display:inline-block;padding:1px 5px;border-radius:3px;margin:1px;font-size:8px;background:#e8e0d0;}
+    @media print{@page{margin:10mm;size:A4;}}
+  </style></head><body>
+  <h1>📅 Einsatzplan · ${l?.vorname||''} ${l?.nachname||''}</h1>
+  <div style="font-size:9px;color:#666;margin-bottom:6px;">${l?.lj||''}. Lehrjahr · Start: ${l?.start||''} · QV: ${l?.qvDatum||S.einstellungen.qvDatum||''} · Exportiert: ${new Date().toLocaleDateString('de-CH')}</div>`;
+
+  years.forEach(yr=>{
+    printHtml+=`<h2>Lehrjahr ${yr-startYear+1} · ${yr}</h2>
+    <table><thead><tr><th>KW</th><th>Zeitraum</th><th>Einsatzbereich(e)</th></tr></thead><tbody>`;
+    
+    for(let kw=1;kw<=53;kw++){
+      const jan4=new Date(yr,0,4);
+      const mon=new Date(jan4);
+      mon.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(kw-1)*7);
+      if(mon.getFullYear()>yr)break;
+      if(mon.getFullYear()<yr){const fri2=new Date(mon);fri2.setDate(mon.getDate()+4);if(fri2.getFullYear()<yr)continue;}
+      
+      const abts=new Set();
+      for(let i=0;i<5;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);const k=getSlot(lid,dk(d));if(k)abts.add(k);}
+      // Check multi
+      const multiSlots=new Set();
+      for(let i=0;i<5;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);const mk=(S.einsatzplan[lid]||{})[dk(d)+'_multi'];if(mk)mk.forEach(x=>multiSlots.add(x));}
+      const allAbts=[...new Set([...abts,...multiSlots])];
+      
+      const fri=new Date(mon);fri.setDate(mon.getDate()+4);
+      const dateStr=mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'})+'–'+fri.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'});
+      const pills=allAbts.length?allAbts.map(k=>{const a=ABTS.find(x=>x.k===k);return a?`<span class="pill">${a.icon} ${a.l}</span>`:''}).join(''):'<span class="empty">—</span>';
+      printHtml+=`<tr><td><b>KW ${kw}</b></td><td>${dateStr}</td><td>${pills}</td></tr>`;
+    }
+    printHtml+=`</tbody></table>`;
+  });
+  
+  printHtml+=`</body></html>`;
+  const w=window.open('','_blank','width=800,height=600');
+  w.document.write(printHtml);
+  w.document.close();
+  setTimeout(()=>w.print(),500);
 }
 
 function renderEinsatzMonth(){
@@ -1571,40 +1836,119 @@ async function deleteTermin(tid){
 // BENUTZER & ROLLEN (nur Admin)
 // ══════════════════════════════════════════════════════════════
 function renderBenutzer(){
+  if(userProfile?.role!=='admin'){
+    document.getElementById('benutzer-content').innerHTML='<div class="card"><div class="dim" style="padding:20px;text-align:center;">🔒 Kein Zugriff</div></div>';
+    return;
+  }
+  // Zeige Pending-Benutzer zuerst (aus emailRoles die pending sind)
   let html=`<div class="card" style="margin-bottom:14px;">
-    <div class="card-t">Benutzer verwalten</div>
-    <div class="card-s">Weise anderen Benutzern eine Abteilungsrolle zu. Die E-Mail muss zuerst registriert sein.</div>
-    <div id="benutzer-list">`;
-
-  if(!S.benutzer.length){
-    html+=`<div class="dim" style="padding:12px;text-align:center;">Noch keine Rollen vergeben.<br>Der erste registrierte Benutzer ist automatisch Admin.</div>`;
+    <div class="card-t">Ausstehende Freigaben</div>
+    <div class="card-s">Registrierte Benutzer die noch keine Rolle haben</div>
+    <div id="pending-list">`;
+  const pending=S.pendingUsers||[];
+  if(!pending.length){
+    html+=`<div class="dim" style="font-size:12px;padding:10px 0;">Keine ausstehenden Anfragen.</div>`;
   } else {
-    S.benutzer.forEach(b=>{
-      const abt=ABTEILUNGEN.find(a=>a.id===b.abteilung);
+    pending.forEach(p=>{
       html+=`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
-        <div style="flex:1;"><div style="font-size:12px;font-weight:500;">${b.email}</div>
-          <div class="dim" style="font-size:10px;">${b.role==='admin'?'👤 Admin':abt?abt.icon+' '+abt.label:'Keine Rolle'}</div>
-        </div>
-        <button class="btn btn-out btn-sm" onclick="window.deleteBenutzer('${b.id}')">🗑</button>
+        <div style="flex:1;"><div style="font-size:12px;font-weight:500;">${p.email}</div>
+          <div class="dim" style="font-size:10px;">⏳ Wartet auf Freigabe</div></div>
+        <select class="fi" id="pend-role-${p.emailKey}" style="width:160px;font-size:11px;padding:4px 8px;">
+          <option value="admin">👤 Admin</option>
+          ${ABTEILUNGEN.map(a=>`<option value="${a.id}">${a.icon} ${a.label}</option>`).join('')}
+        </select>
+        <button class="btn btn-gold btn-sm" onclick="window.approvePending('${p.emailKey}','${p.email}')">✓ Freigeben</button>
+        <button class="btn btn-sm" style="background:transparent;border:1px solid var(--red);color:var(--red-l);" onclick="window.rejectPending('${p.emailKey}','${p.uid||''}')">✕</button>
       </div>`;
     });
   }
   html+=`</div></div>`;
 
+  html+=`<div class="card" style="margin-bottom:14px;">
+    <div class="card-t">Aktive Benutzer</div>
+    <div class="card-s">Klicke auf den Stift um die Rolle zu ändern</div>`;
+  if(!S.benutzer.length){
+    html+=`<div class="dim" style="font-size:12px;padding:10px 0;">Noch keine Benutzer. Du bist als Admin eingeloggt.</div>`;
+  } else {
+    S.benutzer.forEach(b=>{
+      const abt=ABTEILUNGEN.find(a=>a.id===b.abteilung);
+      const roleLabel=b.role==='admin'?'👤 Admin':abt?abt.icon+' '+abt.label:'—';
+      html+=`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);" id="ben-row-${b.id}">
+        <div style="flex:1;"><div style="font-size:12px;font-weight:500;">${b.email}</div>
+          <div class="dim" style="font-size:10px;">${roleLabel}</div></div>
+        <button class="btn btn-out btn-sm" onclick="window.editBenutzerRow('${b.id}')">✏️</button>
+        <button class="btn btn-sm" style="background:transparent;border:1px solid var(--red);color:var(--red-l);" onclick="window.deleteBenutzer('${b.id}','${b.email}')">🗑</button>
+      </div>`;
+    });
+  }
+  html+=`</div>`;
+
   html+=`<div class="card">
-    <div class="card-t">Rolle vergeben</div>
-    <div class="card-s">Gib die E-Mail-Adresse des Benutzers ein und wähle eine Rolle</div>
-    <label class="fl">E-Mail des Benutzers</label>
-    <input class="fi" type="email" id="ben-email" placeholder="abteilungsleiter@hotel.ch">
-    <label class="fl">Rolle / Abteilung</label>
+    <div class="card-t">Benutzer manuell hinzufügen</div>
+    <div class="card-s">E-Mail muss bereits registriert sein</div>
+    <label class="fl">E-Mail</label>
+    <input class="fi" type="email" id="ben-email" placeholder="mitarbeiter@hotel.ch">
+    <label class="fl">Rolle</label>
     <select class="fi" id="ben-role">
       <option value="admin">👤 Admin (Berufsbildner)</option>
       ${ABTEILUNGEN.map(a=>`<option value="${a.id}">${a.icon} ${a.label}</option>`).join('')}
     </select>
-    <button class="btn btn-gold" style="margin-top:12px;" onclick="window.saveBenutzer()">✓ Rolle speichern</button>
+    <button class="btn btn-gold" style="margin-top:12px;" onclick="window.saveBenutzer()">✓ Hinzufügen</button>
   </div>`;
 
   document.getElementById('benutzer-content').innerHTML=html;
+}
+
+function editBenutzerRow(bid){
+  const b=S.benutzer.find(x=>x.id===bid);if(!b)return;
+  const row=document.getElementById('ben-row-'+bid);if(!row)return;
+  const abt=ABTEILUNGEN.find(a=>a.id===b.abteilung);
+  row.innerHTML=`
+    <div style="flex:1;font-size:12px;font-weight:500;">${b.email}</div>
+    <select class="fi" id="edit-role-${bid}" style="width:160px;font-size:11px;padding:4px 8px;">
+      <option value="admin" ${b.role==='admin'?'selected':''}>👤 Admin</option>
+      ${ABTEILUNGEN.map(a=>`<option value="${a.id}" ${b.abteilung===a.id?'selected':''}>${a.icon} ${a.label}</option>`).join('')}
+    </select>
+    <button class="btn btn-gold btn-sm" onclick="window.saveBenutzerEdit('${bid}','${b.email}')">✓</button>
+    <button class="btn btn-out btn-sm" onclick="window.renderBenutzer()">✕</button>`;
+}
+
+async function saveBenutzerEdit(bid,email){
+  const sel=document.getElementById('edit-role-'+bid);if(!sel)return;
+  const role=sel.value;
+  const isAbt=ABTEILUNGEN.some(a=>a.id===role);
+  const data={role:isAbt?'abt':'admin',abteilung:isAbt?role:null};
+  showLoading(true);
+  await upd('users/'+uid()+'/benutzer/'+bid,data);
+  const emailKey=email.replace(/\./g,'_').replace(/@/g,'_at_');
+  await wj('emailRoles/'+emailKey,{...data,email,adminUid:uid()});
+  const b=S.benutzer.find(x=>x.id===bid);
+  if(b){b.role=data.role;b.abteilung=data.abteilung;}
+  showLoading(false);toast('✓ Rolle aktualisiert');renderBenutzer();
+}
+
+async function approvePending(emailKey,email){
+  const sel=document.getElementById('pend-role-'+emailKey);if(!sel)return;
+  const role=sel.value;
+  const isAbt=ABTEILUNGEN.some(a=>a.id===role);
+  const data={email,role:isAbt?'abt':'admin',abteilung:isAbt?role:null,adminUid:uid()};
+  showLoading(true);
+  await wj('emailRoles/'+emailKey,data);
+  const id=await add('users/'+uid()+'/benutzer',data);
+  S.benutzer.push({id,...data});
+  // Remove from pending
+  S.pendingUsers=(S.pendingUsers||[]).filter(p=>p.emailKey!==emailKey);
+  showLoading(false);toast('✓ Benutzer freigegeben');renderBenutzer();
+}
+
+async function rejectPending(emailKey,userUid){
+  if(!confirm('Benutzer ablehnen und Account löschen?'))return;
+  showLoading(true);
+  await del('emailRoles/'+emailKey);
+  // Flag as rejected
+  await wj('emailRoles/'+emailKey,{role:'rejected'});
+  S.pendingUsers=(S.pendingUsers||[]).filter(p=>p.emailKey!==emailKey);
+  showLoading(false);toast('Benutzer abgelehnt');renderBenutzer();
 }
 
 async function saveBenutzer(){
@@ -1612,30 +1956,43 @@ async function saveBenutzer(){
   const role=document.getElementById('ben-role').value;
   if(!email){toast('E-Mail eingeben','red');return;}
   const isAbt=ABTEILUNGEN.some(a=>a.id===role);
-  const data={email,role:isAbt?'abt':'admin',abteilung:isAbt?role:null};
+  const data={email,role:isAbt?'abt':'admin',abteilung:isAbt?role:null,adminUid:uid()};
   showLoading(true);
-  const id=await add(`users/${uid()}/benutzer`,data);
-  // Auch im globalen profiles Pfad speichern damit der User seine eigene Rolle laden kann
-  // (vereinfacht: wir suchen via email)
-  await wj(`emailRoles/${email.replace(/\./g,'_').replace(/@/g,'_at_')}`,{...data,adminUid:uid()});
+  const id=await add('users/'+uid()+'/benutzer',data);
+  const emailKey=email.replace(/\./g,'_').replace(/@/g,'_at_');
+  await wj('emailRoles/'+emailKey,data);
   S.benutzer.push({id,...data});
-  showLoading(false);toast('✓ Rolle gespeichert');renderBenutzer();
+  showLoading(false);toast('✓ Benutzer hinzugefügt');renderBenutzer();
 }
-async function deleteBenutzer(bid){
-  await del(`users/${uid()}/benutzer/${bid}`);
+async function deleteBenutzer(bid,email){
+  if(!confirm('Benutzer und Rolle löschen?'))return;
+  await del('users/'+uid()+'/benutzer/'+bid);
+  if(email){const ek=email.replace(/\./g,'_').replace(/@/g,'_at_');await del('emailRoles/'+ek);}
   S.benutzer=S.benutzer.filter(x=>x.id!==bid);
-  toast('Rolle gelöscht');renderBenutzer();
+  toast('Benutzer gelöscht');renderBenutzer();
 }
 
 // Lade eigene Rolle beim Login
 async function loadMyRole(){
   const emailKey=user.email.replace(/\./g,'_').replace(/@/g,'_at_');
-  const snap=await rj(`emailRoles/${emailKey}`);
-  if(snap){
-    userProfile={role:snap.role,abteilung:snap.abteilung};
-  } else {
-    userProfile={role:'admin',abteilung:null};
+  const snap=await rj('emailRoles/'+emailKey);
+  if(snap && snap.role==='pending'){
+    // Gesperrt — Logout und Fehlermeldung
+    await signOut(auth);
+    document.getElementById('auth-screen').style.display='flex';
+    document.getElementById('app').style.display='none';
+    const err=document.getElementById('auth-err');
+    if(err){err.style.color='var(--yellow)';err.textContent='⏳ Dein Account wartet auf Freigabe durch den Admin.';}
+    return false;
   }
+  if(snap && snap.role && snap.role!=='pending'){
+    userProfile={role:snap.role,abteilung:snap.abteilung,adminUid:snap.adminUid};
+  } else {
+    // Erster Benutzer = Admin
+    userProfile={role:'admin',abteilung:null};
+    await wj('emailRoles/'+emailKey,{email:user.email,role:'admin',abteilung:null,uid:user.uid});
+  }
+  return true;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1683,12 +2040,45 @@ async function addLehrling(){
   if(!vn||!nn){toast('Vor- und Nachname eingeben','red');return;}
   const colors=['#C9A84C','#3A6FA0','#5B8C5A','#9B5E8C','#C8675A','#4A8080'];
   const color=colors[S.lehrlinge.length%colors.length];
+  const geb=document.getElementById('nl-geb').value;
   const data={vorname:vn,nachname:nn,lj:parseInt(document.getElementById('nl-lj').value),
-    start:document.getElementById('nl-start').value,initials:(vn[0]+(nn[0]||'')).toUpperCase(),color};
-  showLoading(true);const id=await add(`users/${uid()}/lehrlinge`,data);
+    start:document.getElementById('nl-start').value,
+    geburtsdatum:geb||null,
+    qvDatum:document.getElementById('nl-qv').value||S.einstellungen.qvDatum||'2026-07-01',
+    initials:(vn[0]+(nn[0]||'')).toUpperCase(),color};
+  showLoading(true);const id=await add('users/'+uid()+'/lehrlinge',data);
   S.lehrlinge.push({id,...data});currentLid=id;
   showLoading(false);closeModal('lehrling');toast('✓ Lehrling hinzugefügt');renderAll();fillDropdowns();
 }
+function openEditLehrling(lid){
+  const l=S.lehrlinge.find(x=>x.id===lid);if(!l)return;
+  document.getElementById('el-id').value=lid;
+  document.getElementById('el-vn').value=l.vorname;
+  document.getElementById('el-nn').value=l.nachname;
+  document.getElementById('el-lj').value=l.lj;
+  document.getElementById('el-start').value=l.start||'';
+  document.getElementById('el-geb').value=l.geburtsdatum||'';
+  document.getElementById('el-qv').value=l.qvDatum||S.einstellungen.qvDatum||'';
+  openModal('edit-lehrling');
+}
+async function saveEditLehrling(){
+  const lid=document.getElementById('el-id').value;
+  const l=S.lehrlinge.find(x=>x.id===lid);if(!l)return;
+  const data={
+    vorname:document.getElementById('el-vn').value.trim(),
+    nachname:document.getElementById('el-nn').value.trim(),
+    lj:parseInt(document.getElementById('el-lj').value),
+    start:document.getElementById('el-start').value,
+    geburtsdatum:document.getElementById('el-geb').value||null,
+    qvDatum:document.getElementById('el-qv').value||null,
+    initials:(document.getElementById('el-vn').value.trim()[0]+(document.getElementById('el-nn').value.trim()[0]||'')).toUpperCase()
+  };
+  showLoading(true);
+  await upd('users/'+uid()+'/lehrlinge/'+lid,data);
+  Object.assign(l,data);
+  showLoading(false);closeModal('edit-lehrling');toast('✓ Lehrling aktualisiert');renderAll();
+}
+
 async function deleteLehrling(lid){
   if(!confirm('Lehrling und alle Daten löschen?'))return;
   showLoading(true);await del(`users/${uid()}/lehrlinge/${lid}`);
@@ -1696,6 +2086,101 @@ async function deleteLehrling(lid){
   if(currentLid===lid)currentLid=S.lehrlinge[0]?.id||null;
   showLoading(false);renderAll();toast('Lehrling gelöscht');
 }
+function calcAlter(geburtsdatum){
+  if(!geburtsdatum)return null;
+  const geb=new Date(geburtsdatum);
+  const now=new Date();
+  let age=now.getFullYear()-geb.getFullYear();
+  const m=now.getMonth()-geb.getMonth();
+  if(m<0||(m===0&&now.getDate()<geb.getDate()))age--;
+  return age;
+}
+
+function getJugendschutzInfo(geburtsdatum){
+  const alter=calcAlter(geburtsdatum);
+  if(alter===null)return null;
+  
+  const infos=[];
+  
+  if(alter<16){
+    infos.push({
+      typ:'warn',
+      titel:`Unter 16 Jahre (${alter} Jahre)`,
+      punkte:[
+        '⏰ Arbeitszeit max. 8 Std./Tag, max. 40 Std./Woche (ArG Art. 31)',
+        '🌙 Keine Nachtarbeit (Verbot zwischen 20:00 und 06:00 Uhr)',
+        '🛑 Keine Sonntagsarbeit',
+        '⚖️ Mindestlohn gemäss L-GAV Gastronomie beachten',
+        '📋 Tägliche Ruhezeit mind. 12 Stunden',
+        '🏖️ Ferienanspruch mind. 5 Wochen pro Jahr (OR Art. 329a)',
+        '📜 Schüler-/Lehrlingsbeschäftigung: Bewilligung des Arbeitsinspektorats kann nötig sein',
+        '🧾 Lehrvertrag muss durch gesetzlichen Vertreter unterzeichnet sein (BBG Art. 14)',
+      ]
+    });
+  } else if(alter<18){
+    infos.push({
+      typ:'info',
+      titel:`Jugendliche/r (${alter} Jahre, 16–18)`,
+      punkte:[
+        '⏰ Arbeitszeit max. 9 Std./Tag, max. 45 Std./Woche (ArG Art. 31)',
+        '🌙 Nachtarbeit bis 22:00 Uhr erlaubt (nicht vor 06:00)',
+        '🛑 Sonntagsarbeit: max. 2 Sonntage pro Monat mit Zuschlag 50%',
+        '📋 Tägliche Ruhezeit mind. 12 Stunden (ArGV 5)',
+        '🏖️ Ferienanspruch mind. 5 Wochen pro Jahr (OR Art. 329a)',
+        '⚠️ Gefährliche Arbeiten: eingeschränkt gemäss ArGV 5 Art. 4',
+        '🧾 Bei minderjährigen Lernenden: Lehrvertrag durch Eltern/Vormund unterzeichnen (BBG Art. 14)',
+        '💰 Lohn gemäss L-GAV Hotel & Gastro, mind. kantonaler Mindestlohn',
+      ]
+    });
+  } else {
+    infos.push({
+      typ:'ok',
+      titel:`Volljährig (${alter} Jahre)`,
+      punkte:[
+        '⏰ Normale Arbeitszeit gemäss L-GAV: max. 42 Std./Woche',
+        '🌙 Nachtarbeit mit Bewilligung und Zuschlägen möglich',
+        '🛑 Sonntagsarbeit mit Bewilligung und 50%-Zuschlag',
+        '🏖️ Ferienanspruch: mind. 4 Wochen (bis 20 Jahre: 5 Wochen) (OR Art. 329a)',
+        '💰 Lohn gemäss L-GAV Hotel & Gastro',
+      ]
+    });
+  }
+  
+  // Bald volljährig?
+  if(alter===17){
+    const geb=new Date(geburtsdatum);
+    const next18=new Date(geb.getFullYear()+18,geb.getMonth(),geb.getDate());
+    const days=Math.ceil((next18-new Date())/86400000);
+    if(days<=90) infos.push({typ:'hint',titel:`Wird in ${days} Tagen volljährig`,punkte:['Lehrvertrag und Lohnklasse nach Volljährigkeit prüfen']});
+  }
+  
+  return infos;
+}
+
+function renderJugendschutz(lid){
+  const l=S.lehrlinge.find(x=>x.id===lid);
+  if(!l?.geburtsdatum){
+    return '<div class="dim" style="font-size:12px;padding:8px;">Kein Geburtsdatum hinterlegt. Im Datenbank-Tab Lehrling bearbeiten.</div>';
+  }
+  const infos=getJugendschutzInfo(l.geburtsdatum);
+  if(!infos||!infos.length)return '';
+  return infos.map(info=>{
+    const cls=info.typ==='warn'?'tr':info.typ==='info'?'ty':info.typ==='ok'?'tg':'tb';
+    const bg=info.typ==='warn'?'rgba(155,58,48,.08)':info.typ==='info'?'rgba(184,144,32,.08)':info.typ==='ok'?'rgba(91,140,90,.08)':'rgba(46,90,140,.08)';
+    return `<div style="background:${bg};border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:7px;">
+        <span class="tag ${cls}">${info.titel}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;">
+        ${info.punkte.map(p=>`<div style="font-size:11px;line-height:1.5;">${p}</div>`).join('')}
+      </div>
+      <div style="font-size:10px;color:var(--dim);margin-top:8px;padding-top:6px;border-top:1px solid var(--border);">
+        Quellen: ArG (Arbeitsgesetz), ArGV 5 (Jugendarbeitsschutz), BBG (Berufsbildungsgesetz), OR (Obligationenrecht), L-GAV Hotel & Gastro formation
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function renderDB(){
   const lzP=S.lehrlinge.reduce((acc,l)=>{const p=calcLZProg(l.id);return{done:acc.done+p.done,total:acc.total+p.total};},{done:0,total:0});
   document.getElementById('db-status').innerHTML=`
@@ -1708,17 +2193,39 @@ function renderDB(){
     <div class="sr">Benutzer/Rollen<span>${S.benutzer.length}</span></div>`;
   document.getElementById('db-lehrlinge').innerHTML=S.lehrlinge.length===0
     ?'<div class="dim" style="font-size:12px;text-align:center;padding:12px;">Noch keine Lernenden.</div>'
-    :S.lehrlinge.map(l=>`<div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--border);">
-        <div class="lav" style="background:${l.color||'#555'}">${l.initials}</div>
-        <div style="flex:1;font-size:12px;font-weight:500;">${l.vorname} ${l.nachname}<div class="dim" style="font-size:10px;">${l.lj}. Lehrjahr · ${l.start}</div></div>
-        <button class="btn btn-out btn-sm" onclick="window.deleteLehrling('${l.id}')">🗑</button>
-      </div>`).join('');
+    :S.lehrlinge.map(l=>{
+      const alter=calcAlter(l.geburtsdatum);
+      const alterTag=alter!==null?`<span class="tag ${alter<16?'tr':alter<18?'ty':'tg'}" style="font-size:9px;">${alter} J.</span>`:'';
+      return `<div style="padding:10px 0;border-bottom:1px solid var(--border);">
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:6px;">
+          <div class="lav" style="background:${l.color||'#555'}">${l.initials}</div>
+          <div style="flex:1;">
+            <div style="font-size:12px;font-weight:500;display:flex;align-items:center;gap:5px;">${l.vorname} ${l.nachname} ${alterTag}</div>
+            <div class="dim" style="font-size:10px;">${l.lj}. Lehrjahr · Start: ${l.start}${l.geburtsdatum?' · Geb: '+new Date(l.geburtsdatum).toLocaleDateString('de-CH',''):''}${l.qvDatum?' · QV: '+l.qvDatum:''}</div>
+          </div>
+          <button class="btn btn-out btn-sm" onclick="window.openEditLehrling('${l.id}')">✏️</button>
+          <button class="btn btn-sm" style="background:transparent;border:1px solid var(--red);color:var(--red-l);" onclick="window.deleteLehrling('${l.id}')">🗑</button>
+        </div>
+        <div onclick="this.nextElementSibling.classList.toggle('open');this.classList.toggle('open')" 
+          style="font-size:10px;color:var(--blue-l);cursor:pointer;padding-left:35px;">⚖️ Jugendschutz & Arbeitsrecht anzeigen ▾</div>
+        <div style="display:none;padding-left:35px;margin-top:6px;">${renderJugendschutz(l.id)}</div>
+      </div>`;
+    }).join('');
   document.getElementById('db-qv-datum').value=S.einstellungen.qvDatum||'2026-07-01';
+  // Per-lehrling QV in der Lehrlings-Tabelle wird via renderJugendschutz gezeigt
 }
 async function saveQVDatum(){
   S.einstellungen.qvDatum=document.getElementById('db-qv-datum').value;
-  await wj(`users/${uid()}/einstellungen/data`,S.einstellungen);
-  toast('✓ QV-Datum gespeichert');
+  await wj('users/'+uid()+'/einstellungen/data',S.einstellungen);
+  toast('✓ Standard-QV-Datum gespeichert');
+}
+async function saveLehrlingQV(lid){
+  const el=document.getElementById('qv-datum-'+lid);if(!el)return;
+  const l=S.lehrlinge.find(x=>x.id===lid);if(!l)return;
+  l.qvDatum=el.value;
+  await upd('users/'+uid()+'/lehrlinge/'+lid,{qvDatum:el.value});
+  toast('✓ QV-Datum für '+l.vorname+' gespeichert');
+  renderQV();renderOverview();
 }
 async function exportBackup(){
   const bk={version:5,exportDatum:new Date().toISOString(),lehrlinge:S.lehrlinge,lernberichte:S.lernberichte,lzStatus:S.lzStatus,bewertungen:S.bewertungen,einsatzplan:S.einsatzplan,termine:S.termine,szenarien:S.szenarien};
@@ -1759,6 +2266,17 @@ function renderAll(){
 // ══════════════════════════════════════════════════════════════
 // DOM-Init läuft nach dem Laden des HTML (defer/module garantiert das,
 // aber querySelectorAll braucht den DOM — sicher mit DOMContentLoaded)
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme',t);
+  localStorage.setItem('kofa-theme',t);
+  const btn=document.getElementById('theme-btn');
+  if(btn)btn.textContent=t==='light'?'🌙':'☀️';
+}
+function toggleTheme(){
+  const cur=document.documentElement.getAttribute('data-theme')||'dark';
+  applyTheme(cur==='light'?'dark':'light');
+}
+
 Object.assign(window,{
   login,register,logout,showTab,selectL,openModal,closeModal,
   setBpSem,toggleLL,toggleAccordion,toggleLZ,
@@ -1769,8 +2287,11 @@ Object.assign(window,{
   setEpView,changeEp,resetEp,epCellClick,epMonthClick,epDragOver,epDragLeave,epDrop,palDragStart,setDaySlot,
   openNewTermin,editTermin,saveTermin,erledigeTermin,deleteTermin,
   qAsk,kiSend,kiKey,kiResize,saveApiKey,
-  addLehrling,deleteLehrling,saveBenutzer,deleteBenutzer,
-  exportBackup,importBackup,saveQVDatum,renderDB
+  addLehrling,deleteLehrling,openEditLehrling,saveEditLehrling,saveBenutzer,deleteBenutzer,
+  editBenutzerRow,saveBenutzerEdit,approvePending,rejectPending,renderBenutzer,
+  exportBackup,importBackup,saveQVDatum,saveLehrlingQV,renderDB,
+  openYearEdit,toggleYeAbt,saveYearEdit,openYearBulk,saveYearBulk,exportJahresplan,
+  toggleTheme,applyTheme
 });
 
 // Init nach DOM-Ready
@@ -1792,9 +2313,21 @@ document.addEventListener('DOMContentLoaded',()=>{
   --red:#9B3A30;--red-l:#D06050;
   --blue:#2E5A8C;--blue-l:#5A90C8;
   --yellow:#B89020;
+  color-scheme: dark;
+}
+[data-theme="light"]{
+  --bg:#F5F2EC;--bg2:#FFFFFF;--card:#FFFFFF;
+  --border:#D8D0C0;--border2:#C4BAA8;
+  --cream:#2A2520;--dim:#7A6E5E;
+  --gold:#A07830;--gold-l:#8A6520;
+  --green:#3A6A38;--green-l:#2E5A2C;
+  --red:#8B2A20;--red-l:#A03828;
+  --blue:#1E4A7C;--blue-l:#1A3D6A;
+  --yellow:#8A6010;
+  color-scheme: light;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--cream);min-height:100vh;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--cream);min-height:100vh;transition:background .3s,color .3s;}
 body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 40% at 20% 0%,rgba(201,168,76,.05),transparent);pointer-events:none;z-index:0;}
 a{color:var(--blue-l);}
 
@@ -2037,6 +2570,32 @@ textarea.fi{min-height:60px;resize:vertical;}
 ::-webkit-scrollbar{width:4px;}
 ::-webkit-scrollbar-track{background:var(--bg2);}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+
+/* JAHRESPLAN */
+.year-table{width:100%;border-collapse:collapse;font-size:12px;}
+.year-table th{background:rgba(201,168,76,.1);padding:7px 10px;text-align:left;border-bottom:2px solid var(--gold);font-size:11px;text-transform:uppercase;letter-spacing:.04em;}
+.year-table td{padding:6px 10px;border-bottom:1px solid var(--border);vertical-align:middle;}
+.year-table tr.empty-row td{opacity:.5;}
+.year-table tr:hover td{background:rgba(255,255,255,.02);}
+.ye-abt-btn{cursor:pointer;border:2px solid transparent;transition:all .15s;}
+.ye-abt-btn.ye-sel{border-color:var(--gold)!important;box-shadow:0 0 0 2px rgba(201,168,76,.3);}
+
+/* LIGHT THEME OVERRIDES */
+[data-theme="light"] .auth-box{box-shadow:0 4px 24px rgba(0,0,0,.12);}
+[data-theme="light"] .card{box-shadow:0 1px 4px rgba(0,0,0,.06);}
+[data-theme="light"] body::before{background:radial-gradient(ellipse 80% 40% at 20% 0%,rgba(160,120,48,.06),transparent);}
+[data-theme="light"] .ki-msg.user{background:var(--gold);color:white;}
+[data-theme="light"] .ki-msg.assistant{background:#F8F4EE;}
+[data-theme="light"] .hkb-hd{background:rgba(160,120,48,.05);}
+[data-theme="light"] .hkb-hd:hover{background:rgba(160,120,48,.1);}
+[data-theme="light"] header{background:rgba(245,242,236,.97);}
+[data-theme="light"] nav{background:#FFFFFF;}
+
+@media print{
+  header,nav,.btn,#loading,#toast{display:none!important;}
+  body{background:white;color:#111;}
+  .card{border:1px solid #ddd;box-shadow:none;}
+}
 </style>
 
 <!-- LOADING & TOAST -->
@@ -2071,7 +2630,8 @@ textarea.fi{min-height:60px;resize:vertical;}
   <div class="hflex"></div>
   <div style="font-size:11px;color:var(--dim);background:var(--bg2);border:1px solid var(--border);padding:4px 10px;border-radius:20px;" id="today-badge"></div>
   <span style="font-size:11px;color:var(--dim);margin-left:6px;" id="user-email"></span>
-  <button class="btn btn-out btn-sm" style="margin-left:6px;" onclick="window.logout()">Abmelden</button>
+  <button class="btn btn-out btn-sm" id="theme-btn" onclick="window.toggleTheme()" title="Theme wechseln" style="font-size:15px;padding:4px 8px;">☀️</button>
+  <button class="btn btn-out btn-sm" style="margin-left:4px;" onclick="window.logout()">Abmelden</button>
 </header>
 <nav>
   <div class="tab active" onclick="window.showTab('overview',this)">📊 Übersicht</div>
@@ -2159,6 +2719,7 @@ textarea.fi{min-height:60px;resize:vertical;}
     <div style="background:rgba(201,168,76,.07);border:1px solid rgba(201,168,76,.25);border-radius:12px;padding:18px;text-align:center;">
       <div style="font-family:'DM Serif Display',serif;font-size:44px;color:var(--gold);" id="qv-days">–</div>
       <div style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-top:4px;">Tage bis QV</div>
+      <div style="font-size:11px;color:var(--dim);margin-top:2px;" id="qv-datum-lbl"></div>
     </div>
     <div class="card">
       <div class="card-t">LZ-Fortschritt</div>
@@ -2189,7 +2750,8 @@ textarea.fi{min-height:60px;resize:vertical;}
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
       <div class="card-t" id="ep-label">Einsatzplan</div>
       <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;">
-        <button class="ep-view-btn active" id="epv-month" onclick="window.setEpView('month')">Monat</button>
+        <button class="ep-view-btn active" id="epv-year" onclick="window.setEpView('year')">Jahr</button>
+        <button class="ep-view-btn" id="epv-month" onclick="window.setEpView('month')">Monat</button>
         <button class="ep-view-btn" id="epv-week" onclick="window.setEpView('week')">Woche</button>
         <button class="ep-view-btn" id="epv-day" onclick="window.setEpView('day')">Tag</button>
         <div style="width:1px;height:18px;background:var(--border);margin:0 3px;"></div>
@@ -2305,10 +2867,13 @@ textarea.fi{min-height:60px;resize:vertical;}
     <div class="modal-t">Lehrling erfassen</div>
     <label class="fl">Vorname</label><input class="fi" type="text" id="nl-vn" placeholder="z.B. Mia">
     <label class="fl">Nachname</label><input class="fi" type="text" id="nl-nn" placeholder="z.B. Steiner">
+    <label class="fl">Geburtsdatum</label><input class="fi" type="date" id="nl-geb">
     <label class="fl">Lehrjahr</label>
     <select class="fi" id="nl-lj"><option value="1">1. Lehrjahr</option><option value="2" selected>2. Lehrjahr</option><option value="3">3. Lehrjahr</option></select>
     <label class="fl">Ausbildungsstart</label>
     <input class="fi" type="month" id="nl-start" value="2024-08">
+    <label class="fl">QV-Datum</label>
+    <input class="fi" type="date" id="nl-qv">
     <div class="modal-actions">
       <button class="btn btn-out" onclick="window.closeModal('lehrling')">Abbrechen</button>
       <button class="btn btn-gold" onclick="window.addLehrling()">✓ Hinzufügen</button>
@@ -2396,6 +2961,58 @@ textarea.fi{min-height:60px;resize:vertical;}
     <div class="modal-actions">
       <button class="btn btn-out" onclick="window.closeModal('aufgabe')">Abbrechen</button>
       <button class="btn btn-gold" onclick="window.saveAufgabe()">✓ Hinzufügen</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL: Lehrling bearbeiten -->
+<div class="modal-overlay" id="modal-edit-lehrling">
+  <div class="modal">
+    <div class="modal-t">Lehrling bearbeiten</div>
+    <input type="hidden" id="el-id">
+    <label class="fl">Vorname</label><input class="fi" type="text" id="el-vn">
+    <label class="fl">Nachname</label><input class="fi" type="text" id="el-nn">
+    <label class="fl">Geburtsdatum</label><input class="fi" type="date" id="el-geb">
+    <label class="fl">Lehrjahr</label>
+    <select class="fi" id="el-lj"><option value="1">1. Lehrjahr</option><option value="2">2. Lehrjahr</option><option value="3">3. Lehrjahr</option></select>
+    <label class="fl">Ausbildungsstart</label><input class="fi" type="month" id="el-start">
+    <label class="fl">QV-Datum</label><input class="fi" type="date" id="el-qv">
+    <div class="modal-actions">
+      <button class="btn btn-out" onclick="window.closeModal('edit-lehrling')">Abbrechen</button>
+      <button class="btn btn-gold" onclick="window.saveEditLehrling()">✓ Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Jahresplan KW bearbeiten -->
+<div class="modal-overlay" id="modal-year-edit">
+  <div class="modal">
+    <div class="modal-t">Einsatz für <span id="ye-kw-lbl"></span></div>
+    <div class="card-s">Wähle einen oder mehrere Einsatzbereiche für diese Woche:</div>
+    <div id="ye-palette" style="display:flex;flex-wrap:wrap;gap:6px;margin:12px 0;"></div>
+    <div style="font-size:11px;color:var(--dim);">Mehrere Bereiche möglich — z.B. Mo–Mi Reception, Do–Fr Service</div>
+    <div class="modal-actions">
+      <button class="btn btn-out" onclick="window.closeModal('year-edit')">Abbrechen</button>
+      <button class="btn btn-gold" onclick="window.saveYearEdit()">✓ Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Jahresplan Bulk -->
+<div class="modal-overlay" id="modal-year-bulk">
+  <div class="modal">
+    <div class="modal-t">Mehrere KW planen · <span id="yb-year"></span></div>
+    <div class="card-s">Trage für einen Zeitraum von Kalenderwochen gleich den Einsatzbereich ein</div>
+    <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:10px;">
+      <div style="flex:1;"><label class="fl">KW von</label><input class="fi" type="number" id="yb-kw-von" min="1" max="53" value="1"></div>
+      <div style="flex:1;"><label class="fl">KW bis</label><input class="fi" type="number" id="yb-kw-bis" min="1" max="53" value="4"></div>
+    </div>
+    <label class="fl">Einsatzbereich(e)</label>
+    <div id="yb-palette" style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-out" onclick="window.closeModal('year-bulk')">Abbrechen</button>
+      <button class="btn btn-gold" onclick="window.saveYearBulk()">✓ Eintragen</button>
     </div>
   </div>
 </div>
