@@ -1448,7 +1448,6 @@ async function setMonthSlot(lid,date,abtKey,cellEl){
   toast('✓ Eingetragen');
 }
 
-let epSelectedCell=null;
 function epCellClick(lid,date,el){
   document.querySelectorAll('.ep-cell.selected').forEach(c=>c.classList.remove('selected'));
   if(epSelectedCell?.lid===lid&&epSelectedCell?.date===date){epSelectedCell=null;return;}
