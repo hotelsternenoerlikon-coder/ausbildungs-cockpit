@@ -1480,7 +1480,7 @@ function resetEp(){
   else epDayOff=0;
   renderEinsatz();
 }
-function setEpView(v){epView=v;document.querySelectorAll('.ep-view-btn').forEach(b=>b.classList.remove('active'));document.getElementById('epv-'+v)?.classList.add('active');}
+function setEpView(v){epView=v;document.querySelectorAll('.ep-view-btn').forEach(b=>b.classList.remove('active'));document.getElementById('epv-'+v)?.classList.add('active');renderEinsatz();}
 
 function renderEinsatz(){
   document.querySelectorAll('.ep-view-btn').forEach(b=>b.classList.remove('active'));
@@ -1499,167 +1499,239 @@ let epDetailKW = null; // Angeklickte KW für Tag-Detail
 
 function renderEinsatzYear(){
   if(!currentLid){
-    document.getElementById('ep-main').innerHTML='<div class="dim" style="padding:20px;text-align:center;">Bitte Lernende/n auswählen<\/div>';
+    document.getElementById('ep-main').innerHTML='<div class="dim" style="padding:40px;text-align:center;">Bitte Lernende/n auswählen<\/div>';
     return;
   }
   const lid = currentLid;
-  const l = S.lehrlinge.find(x=>x.id===lid);
-  if(!l){document.getElementById('ep-main').innerHTML='';return;}
+  const l   = S.lehrlinge.find(x=>x.id===lid);
+  if(!l){ document.getElementById('ep-main').innerHTML=''; return; }
 
-  // Startjahr aus Ausbildungsstart (Default: aktuelles Jahr - lj + 1)
   const startStr = l.start || (new Date().getFullYear()-((l.lj||1)-1))+'-08';
-  const [startY, startM] = startStr.split('-').map(Number);
-  // Lehrjahr 1: startM → startM+11 des Folgejahres; beginnt im August
-  // Lehrjahre: start August Year0, end Juli Year1 usw.
+  const [startY, startM0] = startStr.split('-').map(Number);
+  const startM = startM0 || 8;  // Ausbildungsstart-Monat (1-based)
 
-  document.getElementById('ep-label').textContent = `3-Lehrjahr Einsatzplan · ${l.vorname} ${l.nachname}`;
-
-  // Hilfsfunktionen
-  function kwMonday(year, kw){
-    const jan4 = new Date(year,0,4);
-    const d = new Date(jan4);
-    d.setDate(jan4.getDate() - (jan4.getDay()||7) + 1 + (kw-1)*7);
+  /* ── Hilfsfunktionen ─────────────────────────────────────── */
+  function kwInfo(d){
+    // ISO week number + year
+    const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+    t.setUTCDate(t.getUTCDate()+4-(t.getUTCDay()||7));
+    const ys=new Date(Date.UTC(t.getUTCFullYear(),0,1));
+    return{kw:Math.ceil((((t-ys)/86400000)+1)/7),year:t.getUTCFullYear()};
+  }
+  function kwMon(year,kw){
+    const jan4=new Date(year,0,4);
+    const d=new Date(jan4);
+    d.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(kw-1)*7);
     return d;
   }
-  function getKW(d){
-    const date = new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
-    date.setUTCDate(date.getUTCDate()+4-(date.getUTCDay()||7));
-    const yearStart = new Date(Date.UTC(date.getUTCFullYear(),0,1));
-    return {kw:Math.ceil((((date-yearStart)/86400000)+1)/7), year:date.getUTCFullYear()};
+  function slotMulti(dkey){
+    const ep=S.einsatzplan[lid]||{};
+    return ep[dkey+'_multi']||(ep[dkey]?[ep[dkey]]:[]);
   }
-  function getSlotMulti(lid, dkey){
-    const ep = S.einsatzplan[lid]||{};
-    if(ep[dkey+'_multi']) return ep[dkey+'_multi'];
-    if(ep[dkey]) return [ep[dkey]];
-    return [];
-  }
+  function dkey(d){ return d.toISOString().slice(0,10); }
 
-  // Berechne alle Wochen für 3 Lehrjahre
-  function getWeeksForLJ(lj){
-    // LJ beginnt im August des (startY + lj - 1)
-    const ljStartYear = startY + (lj-1);
-    const ljStart = new Date(ljStartYear, startM-1, 1); // z.B. 1.8.2024
-    const ljEnd = new Date(ljStartYear+1, startM-1, 0); // 31.7.2025
-
-    const weeks = [];
-    // Gehe von ljStart bis ljEnd, eine Woche auf einmal
-    let cur = new Date(ljStart);
-    // Gehe zum Montag der ersten KW
-    while(cur.getDay() !== 1) cur.setDate(cur.getDate()-1);
-
-    while(cur <= ljEnd){
-      const mon = new Date(cur);
-      const fri = new Date(cur); fri.setDate(cur.getDate()+4);
-      const sun = new Date(cur); sun.setDate(cur.getDate()+6);
-      const {kw, year:kwYear} = getKW(mon);
-      // Dkeys für Mo-Fr
-      const dkeys = [];
-      for(let i=0;i<7;i++){
-        const d=new Date(cur); d.setDate(cur.getDate()+i);
-        dkeys.push(d.toISOString().slice(0,10));
-      }
-      weeks.push({kw, kwYear, mon, fri, sun, dkeys,
-        inRange: mon <= ljEnd && sun >= ljStart
-      });
+  /* ── Wochen pro Lehrjahr ─────────────────────────────────── */
+  function weeksForLJ(lj){
+    const ly = startY+(lj-1);
+    const ljStart = new Date(ly, startM-1, 1);        // z.B. 1.8.2025
+    const ljEnd   = new Date(ly+1, startM-1, 0);      // z.B. 31.7.2026
+    const weeks=[];
+    // Montag der ersten KW die ljStart enthält
+    let cur=new Date(ljStart);
+    while(cur.getDay()!==1) cur.setDate(cur.getDate()-1);
+    while(cur<=ljEnd){
+      const mon=new Date(cur);
+      const fri=new Date(cur); fri.setDate(cur.getDate()+4);
+      const sun=new Date(cur); sun.setDate(cur.getDate()+6);
+      const {kw,year:kwY}=kwInfo(mon);
+      const days=[];
+      for(let i=0;i<5;i++){const d=new Date(cur);d.setDate(cur.getDate()+i);days.push(dkey(d));}
+      if(sun>=ljStart && mon<=ljEnd) weeks.push({kw,kwY,mon,fri,days});
       cur.setDate(cur.getDate()+7);
     }
-    return weeks.filter(w=>w.inRange);
+    return weeks;
   }
 
-  function getWeekAbtsMulti(lid, dkeys){
-    const all = new Set();
-    dkeys.forEach(dkey=>{
-      getSlotMulti(lid,dkey).forEach(k=>all.add(k));
+  /* ── Primäre Abteilung pro Woche (meistgenannter Slot) ───── */
+  function weekPrimaryAbt(days){
+    const counts={};
+    days.forEach(dk=>{
+      const s=slotMulti(dk);
+      s.forEach(k=>{counts[k]=(counts[k]||0)+1;});
     });
-    return [...all];
+    const keys=Object.keys(counts);
+    if(!keys.length) return null;
+    return keys.reduce((a,b)=>counts[a]>=counts[b]?a:b);
   }
 
-  function renderAbtPills(abts, small=false){
-    if(!abts.length) return '';
-    return abts.map(k=>{
-      const a=ABTS.find(x=>x.k===k);
-      if(!a) return '';
-      return `<span class="ep-mini-btn ${a.cls}" style="font-size:${small?'8':'10'}px;padding:1px 5px;">${a.icon} ${small?'':a.l}<\/span>`;
-    }).join('');
+  /* ── Farbkonstanten für CSS ──────────────────────────────── */
+  const ABT_COLORS = {
+    empfang:     {bg:'#1E4A7C',text:'#ffffff'},
+    reservierung:{bg:'#2E6B9E',text:'#ffffff'},
+    kommunikation:{bg:'#3A7FC1',text:'#ffffff'},
+    service:     {bg:'#6B3A7E',text:'#ffffff'},
+    housekeeping:{bg:'#7E5A3A',text:'#ffffff'},
+    administration:{bg:'#3A6E4A',text:'#ffffff'},
+    kueche:      {bg:'#8B4513',text:'#ffffff'},
+    schule:      {bg:'#4A4A8A',text:'#ffffff'},
+    frei:        {bg:'#5A8A5A',text:'#ffffff'},
+  };
+  function abtStyle(k,opacity=1){
+    const col=ABT_COLORS[k]||{bg:'#555',text:'#fff'};
+    return `background:${col.bg};color:${col.text};opacity:${opacity};`;
   }
 
-  // Render HTML: 3 Lehrjahr-Blöcke
-  let html = '';
+  /* ── HTML aufbauen: 3 Lehrjahr-Zeilen ───────────────────── */
+  // Layout: links Labels, rechts scrollbare KW-Tabelle (wie Vorlage)
+  // Pro Lehrjahr: Monate-Header, KW-Nummern-Zeile, Abteilungs-Zeile, BB-Zeile
+
+  const today = new Date();
+  const todayDk = dkey(today);
+  const {kw:currentKW, year:currentKWY} = kwInfo(today);
+
+  let html = `<div style="overflow-x:auto;font-family:'DM Sans',sans-serif;">
+    <table style="border-collapse:collapse;font-size:10px;min-width:900px;width:100%;">`;
 
   for(let lj=1;lj<=3;lj++){
-    const ljYear = startY + (lj-1);
-    const weeks = getWeeksForLJ(lj);
+    const ly    = startY+(lj-1);
+    const weeks = weeksForLJ(lj);
+    if(!weeks.length) continue;
 
-    html += `<div style="margin-bottom:20px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <div style="font-weight:700;font-size:14px;color:var(--gold);">
-          ${lj}. Lehrjahr · ${ljYear}/${ljYear+1}
-        <\/div>
-        <button class="btn btn-out btn-sm" onclick="window.openYearBulk(${ljYear},${lj})">📋 Bulk-Planung</button>
-      <\/div>
-      <div style="overflow-x:auto;">
-      <table class="year-table" style="min-width:700px;">
-        <thead><tr>
-          <th style="width:48px;">KW<\/th>
-          <th style="width:100px;">Zeitraum<\/th>
-          <th>Einsatzbereich<\/th>
-          <th style="width:70px;">Details<\/th>
-        <\/tr><\/thead><tbody>`;
-
-    // Gruppiere aufeinanderfolgende Wochen mit gleicher Belegung
-    let i=0;
-    while(i < weeks.length){
-      const w = weeks[i];
-      const abts = getWeekAbtsMulti(lid, w.dkeys);
-      const abtsKey = [...abts].sort().join(',');
-
-      // Wie viele Folgewochen mit gleicher Belegung?
-      let span = 1;
-      while(i+span < weeks.length){
-        const nw = weeks[i+span];
-        const nAbts = getWeekAbtsMulti(lid, nw.dkeys).sort().join(',');
-        if(nAbts === abtsKey && abtsKey !== '') span++;
-        else break;
+    /* Monate ermitteln + Spalten-Spans */
+    const monthSpans=[];
+    let curMon=-1, curSpan=0;
+    weeks.forEach(w=>{
+      const m=w.mon.getMonth();
+      if(m===curMon){ curSpan++; }
+      else{
+        if(curMon>=0) monthSpans.push({m:curMon,span:curSpan});
+        curMon=m; curSpan=1;
       }
-      const wEnd = weeks[Math.min(i+span-1, weeks.length-1)];
-      const kwLabel = span>1 ? `KW ${w.kw}–${wEnd.kw}` : `KW ${w.kw}`;
-      const dateStr = w.mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'})+'–'+
-                      wEnd.fri.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'});
+    });
+    if(curMon>=0) monthSpans.push({m:curMon,span:curSpan});
 
-      const today = new Date();
-      const isCurrentWeek = today >= w.mon && today <= w.sun;
-      const pills = renderAbtPills(abts);
-      const rowStyle = isCurrentWeek ? 'background:rgba(201,168,76,.08);font-weight:600;' : '';
+    // Jahrtrennstreifen + Lehrjahr-Header
+    html+=`
+      <tr>
+        <td style="width:130px;background:var(--bg2);border:1px solid var(--border);padding:4px 8px;font-weight:700;font-size:11px;color:var(--gold);">
+          ${lj}. Lehrjahr<br><span style="font-size:9px;font-weight:400;color:var(--dim);">${ly}/${ly+1}</span>
+        </td>
+        <td style="background:var(--bg2);border:1px solid var(--border);padding:0;">
+          <table style="border-collapse:collapse;width:100%;">
 
-      html += `<tr style="${rowStyle}" class="${abts.length?'':'empty-row'}">
-        <td><b style="${isCurrentWeek?'color:var(--gold);':''}">${kwLabel}<\/b>${isCurrentWeek?' ◄':''}<\/td>
-        <td style="font-size:10px;color:var(--dim);">${dateStr}<\/td>
-        <td>
-          <div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;">
-            ${pills||'<span class="dim" style="font-size:11px;">— nicht geplant<\/span>'}
-            <button class="btn btn-sm" style="background:transparent;border:1px solid var(--border);color:var(--dim);font-size:10px;padding:2px 6px;margin-left:4px;" 
-              onclick="window.openYearEdit(${w.kw},${w.kwYear})">✏️</button>
-          <\/div>
-        <\/td>
-        <td>
-          <button class="btn btn-out btn-sm" style="font-size:10px;" 
-            onclick="window.openKWDetail(${w.kw},${w.kwYear})">📅 Tage</button>
-        <\/td>
-      <\/tr>`;
-      i += span;
-    }
+            <!-- Monate-Header -->
+            <tr>
+              ${monthSpans.map(ms=>`
+                <th colspan="${ms.span}" style="background:rgba(201,168,76,.15);border:1px solid var(--border);padding:3px 4px;text-align:center;font-size:10px;font-weight:600;color:var(--cream);white-space:nowrap;">
+                  ${MONTHS_DE[ms.m]}
+                </th>`).join('')}
+            </tr>
 
-    html += `<\/tbody><\/table><\/div><\/div>`;
+            <!-- KW-Nummern -->
+            <tr>
+              ${weeks.map(w=>{
+                const isNow=(w.kw===currentKW&&w.kwY===currentKWY);
+                return`<td style="border:1px solid var(--border);padding:2px 1px;text-align:center;font-size:9px;
+                  ${isNow?'background:rgba(201,168,76,.25);font-weight:700;color:var(--gold);':'color:var(--dim);'}
+                  min-width:18px;cursor:pointer;"
+                  onclick="window.openKWDetail(${w.kw},${w.kwY})"
+                  title="KW ${w.kw} – ${w.mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'})} klicken zum Bearbeiten">
+                  ${w.kw}${isNow?'◄':''}
+                </td>`;
+              }).join('')}
+            </tr>
+
+            <!-- Abteilungs-Zeile (farbige Blöcke wie Vorlage) -->
+            <tr>
+              ${(()=>{
+                // Fasse aufeinanderfolgende Wochen mit GLEICHER Abt zusammen → farbiger Block
+                let cells='';
+                let i=0;
+                while(i<weeks.length){
+                  const w=weeks[i];
+                  const abt=weekPrimaryAbt(w.days);
+                  // Wie viele Folgewochen identische Abt?
+                  let span=1;
+                  while(i+span<weeks.length){
+                    const na=weekPrimaryAbt(weeks[i+span].days);
+                    if(na===abt && abt!==null) span++;
+                    else break;
+                  }
+                  if(abt){
+                    const a=ABTS.find(x=>x.k===abt);
+                    const lbl=span>=3?(a?a.l:''):span>=2?(a?a.icon+' '+a.l.slice(0,6):''):(a?a.icon:'');
+                    cells+=`<td colspan="${span}" style="${abtStyle(abt)}border:1px solid rgba(0,0,0,.3);padding:3px 2px;text-align:center;font-size:${span>=3?'10':'9'}px;font-weight:600;cursor:pointer;white-space:nowrap;overflow:hidden;"
+                      onclick="window.openKWDetail(${weeks[i].kw},${weeks[i].kwY})"
+                      title="${a?a.l:abt} · KW ${weeks[i].kw}${span>1?'–'+weeks[i+span-1].kw:''}">
+                      ${lbl}
+                    </td>`;
+                  } else {
+                    cells+=`<td colspan="${span}" style="border:1px solid var(--border);padding:3px 2px;text-align:center;cursor:pointer;color:var(--dim);font-size:9px;"
+                      onclick="window.openKWDetail(${weeks[i].kw},${weeks[i].kwY})"
+                      title="KW ${weeks[i].kw} – nicht geplant, klicken zum Planen">
+                      ·
+                    </td>`;
+                  }
+                  i+=span;
+                }
+                return cells;
+              })()}
+            </tr>
+
+            <!-- Bildungsbericht-Zeile -->
+            <tr>
+              ${(()=>{
+                // Semester 1 endet ~Ende Jan/Feb (KW 5-8), Semester 2 ~Ende Juli (KW 30-31)
+                const sem1EndKW = 8;  // ca. Mitte Feb
+                const sem2EndKW = 31; // ca. Ende Juli
+                return weeks.map(w=>{
+                  const isS1 = (w.kw===sem1EndKW);
+                  const isS2 = (w.kw===sem2EndKW || (lj===3 && w===weeks[weeks.length-1]));
+                  const semNum = lj*2 - (isS1?1:0);
+                  const bew = S.bewertungen[currentLid]||{};
+                  const semBew = bew['sem'+semNum]||{};
+                  const hasBB = Object.keys(semBew.final||{}).length>0;
+                  if(isS1||isS2){
+                    return`<td style="border:1px solid var(--border);padding:2px 1px;text-align:center;cursor:pointer;"
+                      onclick="window.showTab('bildungsbericht',null);window.setBBSem(${semNum})"
+                      title="Bildungsbericht Semester ${semNum}">
+                      <span style="font-size:9px;${hasBB?'color:var(--green-l);':'color:var(--yellow);'}">
+                        ${hasBB?'📋✓':'📋!'}
+                      </span>
+                    </td>`;
+                  }
+                  return`<td style="border:1px solid var(--border);padding:2px;"></td>`;
+                }).join('');
+              })()}
+            </tr>
+
+          </table>
+        </td>
+      </tr>`;
   }
 
-  html += `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
-    <button class="btn btn-gold" onclick="window.exportJahresplan()">📄 PDF 3-Jahresplan exportieren</button>
-  <\/div>`;
+  html+=`</table>
+
+  <!-- Legende -->
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;align-items:center;">
+    <span style="font-size:10px;color:var(--dim);">Legende:</span>
+    ${ABTS.filter(a=>a.k!=='frei').map(a=>`
+      <span style="${abtStyle(a.k)}border-radius:4px;padding:2px 8px;font-size:10px;font-weight:500;">
+        ${a.icon} ${a.l}
+      </span>`).join('')}
+    <span style="margin-left:8px;font-size:10px;color:var(--dim);">📋! = BB fällig &nbsp; 📋✓ = BB erledigt</span>
+  </div>
+
+  <!-- Aktionen -->
+  <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+    <button class="btn btn-gold" onclick="window.exportJahresplan()">📄 PDF 3-Jahresplan</button>
+    <button class="btn btn-out" onclick="window.openYearBulk(${startY},1)">📋 Bulk-Planung</button>
+  </div>
+</div>`;
 
   document.getElementById('ep-main').innerHTML = html;
 }
 
-// ═══ KW Detail-Modal (einzelne Tage) ═══
 function openKWDetail(kw, year){
   const lid = currentLid;
   const jan4 = new Date(year,0,4);
