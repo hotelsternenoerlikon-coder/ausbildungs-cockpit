@@ -360,7 +360,8 @@ let user = null, userProfile = null; // userProfile = {role:'admin'|'abt', abtei
 let currentLid = null;
 let bpSemFilter = 0;
 let currentBerichtId = null;
-let epView = 'year'; // 'year'|'month'|'week'|'day'
+let epView = 'year';
+let bbCurrentSem = 1; // Aktives Semester im Bildungsbericht // 'year'|'month'|'week'|'day'
 let epMonthOff = 0, epWeekOff = 0, epDayOff = 0;
 let epSelectedCell = null;
 let S = {
@@ -395,7 +396,18 @@ async function loadAll() {
   S.lehrlinge=l||[];S.lernberichte=b||[];S.lzStatus=lz||{};
   S.bewertungen=bew||{};S.einsatzplan=ep||{};S.termine=t||[];
   S.einstellungen=ein||{apiKey:'',qvDatum:'2026-07-01'};
+  S.hiddenDefaultSzenarien=S.einstellungen.hiddenDefaultSzenarien||[];
+  // Lade gespeicherte Vorlagen und merge mit Szenarien
+  try{
+    const vorlagen=await col('users/'+uid()+'/szenarien_vorlagen');
+    if(vorlagen&&vorlagen.length){
+      const existingIds=new Set(S.szenarien.map(s=>s.id));
+      vorlagen.forEach(v=>{if(!existingIds.has(v.id))S.szenarien.push(v);});
+    }
+  }catch(e){}
   S.szenarien=sz||[];S.benutzer=ben||[];
+  S.lehrlinge.sort((a,b)=>a.lj-b.lj||(a.nachname||'').localeCompare(b.nachname||''));
+  S.lehrlinge.sort((a,b)=>(a.lj||1)-(b.lj||1)||(a.nachname||'').localeCompare(b.nachname||''));
   if(!currentLid&&S.lehrlinge.length)currentLid=S.lehrlinge[0].id;
   // Lade Pending-Benutzer (nur Admin)
   if(userProfile?.role==='admin'){
@@ -426,6 +438,7 @@ async function loadAllAsAbt(adminUid){
   S._adminUid=adminUid;
   S.lehrlinge=l||[];S.lernberichte=b||[];S.lzStatus=lz||{};
   S.bewertungen=bew||{};S.einsatzplan=ep||{};S.termine=t||[];
+  S.lehrlinge.sort((a,b)=>(a.lj||1)-(b.lj||1)||(a.nachname||'').localeCompare(b.nachname||''));
   if(!currentLid&&S.lehrlinge.length)currentLid=S.lehrlinge[0].id;
 }
 
@@ -585,15 +598,24 @@ function renderOverview(){
     <div class="sc" style="--a:#3A6FA0"><div class="sc-n" style="color:#5A8FC0">${lzP.pct}%</div><div class="sc-l">Leistungsziele</div><div class="dim sc-s">${lzP.done}/${lzP.total} · ${hkDone}/21 HK ✓</div></div>
     <div class="sc" style="--a:#C9A84C"><div class="sc-n" style="color:#C9A84C">${days}</div><div class="sc-l">Tage bis QV</div><div class="dim sc-s">${qvD}</div></div>`;
 
-  // Semester-Fortschritt
+  // Semester-Fortschritt + BB-Status
   let semHtml='<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px;">';
+  const bew=S.bewertungen[currentLid]||{};
   for(let s=1;s<=6;s++){
     const sp=calcSemProgress(currentLid,s);
-    const cls=sp.complete?'tg':sp.pct>0?'ty':'tr';
-    semHtml+=`<div style="background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:10px;text-align:center;">
+    const semBew=bew['sem'+s]||{};
+    const hasBB=Object.keys(semBew.final||{}).length>0;
+    const hasAbtBew=ABTEILUNGEN.some(a=>Object.keys(semBew['abt_'+a.id]||{}).length>0);
+    const bbIcon=hasBB?'📋✓':hasAbtBew?'📋◑':'📋';
+    const bbColor=hasBB?'var(--green-l)':hasAbtBew?'#E0B840':'var(--dim)';
+    // Fälligkeit: S1,3,5 → Ende Feb; S2,4,6 → Ende Aug
+    const faellig=s%2===1?'Ende Feb':'Ende Aug';
+    semHtml+=`<div style="background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:10px;text-align:center;cursor:pointer;" onclick="window.showTab('bildungsbericht',null);window.setBBSem(${s})">
       <div style="font-size:18px;font-weight:700;color:${sp.complete?'var(--green-l)':sp.pct>0?'#E0B840':'var(--dim)'};">${sp.complete?'✓':sp.pct+'%'}</div>
       <div style="font-size:10px;color:var(--dim);margin-top:2px;">Semester ${s}</div>
       <div style="font-size:10px;color:var(--dim);">${sp.done}/${sp.total} LZ</div>
+      <div style="font-size:10px;margin-top:3px;color:${bbColor};">${bbIcon}</div>
+      <div style="font-size:9px;color:var(--dim);opacity:.7;">${faellig}</div>
     </div>`;
   }
   semHtml+='</div>';
@@ -889,25 +911,55 @@ async function delAtt(bid,name,encodedPath){
 function renderBildungsbericht(){
   makeLB('bb-lb');
   if(!currentLid)return;
-  const bew=S.bewertungen[currentLid]||{};
   const isAdmin=userProfile?.role==='admin';
   const myAbt=userProfile?.abteilung;
+  const l=S.lehrlinge.find(x=>x.id===currentLid);
 
-  // Rolle/Abteilung Anzeige
+  // Semester-Status berechnen (Fälligkeit: Ende jedes Semesters = Feb & Aug)
+  const semStatus=[];
+  for(let s=1;s<=6;s++){
+    const bew=S.bewertungen[currentLid]||{};
+    const semBew=bew['sem'+s]||{};
+    const hasFinal=isAdmin&&Object.keys(semBew.final||{}).length>0;
+    const hasAbt=!isAdmin&&Object.keys(semBew['abt_'+(myAbt||'')]||{}).length>0;
+    const anyAbt=isAdmin&&ABTEILUNGEN.some(a=>Object.keys(semBew['abt_'+a.id]||{}).length>0);
+    semStatus.push({s, hasFinal, hasAbt, anyAbt, semBew});
+  }
+
+  // Semester-Tabs
+  const semTabs=semStatus.map(({s,hasFinal,hasAbt,anyAbt})=>{
+    const done=isAdmin?hasFinal:hasAbt;
+    const partial=isAdmin?anyAbt:false;
+    const active=s===bbCurrentSem;
+    return `<button class="sem-btn ${active?'active':''}" onclick="window.setBBSem(${s})"
+      style="${active?'':''}${done?' border-color:var(--green);':partial?' border-color:var(--yellow);':''}">
+      S${s} ${done?'✓':partial?'◑':''}
+    </button>`;
+  }).join('');
+
   const roleInfo=isAdmin
-    ?`<div class="card" style="margin-bottom:14px;border-color:var(--gold)"><div style="display:flex;align-items:center;gap:10px;"><div style="font-size:20px;">👤</div><div><div style="font-size:13px;font-weight:600;">Berufsbildner (Admin)</div><div class="dim" style="font-size:11px;">Siehst alle Abteilungsbewertungen und gibst die finale Beurteilung ab</div></div></div></div>`
-    :(()=>{const abt=ABTEILUNGEN.find(a=>a.id===myAbt);return`<div class="card" style="margin-bottom:14px;border-color:var(--blue-l)"><div style="display:flex;align-items:center;gap:10px;"><div style="font-size:20px;">${abt?.icon||'🏢'}</div><div><div style="font-size:13px;font-weight:600;">${abt?.label||'Unbekannte Abteilung'}</div><div class="dim" style="font-size:11px;">Du bearbeitest die Bewertung für deine Abteilung</div></div></div></div>`;})();
+    ?`<div class="card" style="margin-bottom:14px;border-color:var(--gold)"><div style="display:flex;align-items:center;gap:10px;"><div style="font-size:20px;">👤</div><div><div style="font-size:13px;font-weight:600;">Berufsbildner (Admin)</div><div class="dim" style="font-size:11px;">Semesterende-Beurteilung · Alle Abteilungen + Finalbeurteilung</div></div></div></div>`
+    :(()=>{const abt=ABTEILUNGEN.find(a=>a.id===myAbt);return`<div class="card" style="margin-bottom:14px;border-color:var(--blue-l)"><div style="display:flex;align-items:center;gap:10px;"><div style="font-size:20px;">${abt?.icon||'🏢'}</div><div><div style="font-size:13px;font-weight:600;">${abt?.label||'Unbekannte Abteilung'}</div><div class="dim" style="font-size:11px;">Bewertung für Semester ${bbCurrentSem} · ${l?.vorname||''}</div></div></div></div>`;})();
 
-  document.getElementById('bb-role').innerHTML=roleInfo;
+  document.getElementById('bb-role').innerHTML=roleInfo+
+    `<div style="margin-bottom:14px;">
+      <div style="font-size:11px;color:var(--dim);margin-bottom:6px;">SEMESTER WÄHLEN · Fällig je Ende Feb (S1,S3,S5) und Ende Aug (S2,S4,S6)</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">${semTabs}</div>
+    </div>`;
+
+  const semKey='sem'+bbCurrentSem;
+  const bew=S.bewertungen[currentLid]||{};
+  const semBew=bew[semKey]||{};
 
   if(isAdmin){
-    renderBBAdmin(bew);
+    renderBBAdmin(semBew, semKey);
   } else {
-    renderBBAbteilung(bew,myAbt);
+    renderBBAbteilung(semBew, myAbt, semKey);
   }
 }
+function setBBSem(s){bbCurrentSem=s;renderBildungsbericht();}
 
-function renderBBAdmin(bew){
+function renderBBAdmin(bew, semKey){
   // Mittelwerte aus Abteilungen
   const avgData={};
   ALL_BB_ITEMS.forEach(item=>{
@@ -1029,7 +1081,7 @@ function renderBBAdmin(bew){
   document.getElementById('bb-form').innerHTML=html;
 }
 
-function renderBBAbteilung(bew,abtId){
+function renderBBAbteilung(bew,abtId,semKey){
   const abt=ABTEILUNGEN.find(a=>a.id===abtId);
   const ab=bew[`abt_${abtId}`]||{};
   let html=`<div class="card"><div class="card-t">${abt?.icon||''} Beurteilung ${abt?.label||'Abteilung'}</div>
@@ -1077,10 +1129,12 @@ function renderBBAbteilung(bew,abtId){
 }
 
 function setAbtGrade(abtId,key,grade){
+  const sk='sem'+bbCurrentSem;
   if(!S.bewertungen[currentLid])S.bewertungen[currentLid]={};
-  const akey=`abt_${abtId}`;
-  if(!S.bewertungen[currentLid][akey])S.bewertungen[currentLid][akey]={};
-  S.bewertungen[currentLid][akey][key]=grade;
+  if(!S.bewertungen[currentLid][sk])S.bewertungen[currentLid][sk]={};
+  const akey='abt_'+abtId;
+  if(!S.bewertungen[currentLid][sk][akey])S.bewertungen[currentLid][sk][akey]={};
+  S.bewertungen[currentLid][sk][akey][key]=grade;
   // Update button styles
   const btn=document.querySelector(`[onclick="window.setAbtGrade('${abtId}','${key}','${grade}')"]`);
   if(btn){
@@ -1089,46 +1143,75 @@ function setAbtGrade(abtId,key,grade){
   }
 }
 function setAbtComment(abtId,key,val){
+  const sk='sem'+bbCurrentSem;
   if(!S.bewertungen[currentLid])S.bewertungen[currentLid]={};
-  const akey=`abt_${abtId}`;
-  if(!S.bewertungen[currentLid][akey])S.bewertungen[currentLid][akey]={};
-  S.bewertungen[currentLid][akey][key+'_c']=val;
+  if(!S.bewertungen[currentLid][sk])S.bewertungen[currentLid][sk]={};
+  const akey='abt_'+abtId;
+  if(!S.bewertungen[currentLid][sk][akey])S.bewertungen[currentLid][sk][akey]={};
+  S.bewertungen[currentLid][sk][akey][key+'_c']=val;
 }
-async function saveAbtBew(abtId){
+async function saveAbtBew(abtId,semKey){
   const bemEl=document.getElementById('abt-selbst-bem');
+  const sk=semKey||bbCurrentSem;
   if(bemEl){
     const akey='abt_'+abtId;
     if(!S.bewertungen[currentLid])S.bewertungen[currentLid]={};
-    if(!S.bewertungen[currentLid][akey])S.bewertungen[currentLid][akey]={};
-    S.bewertungen[currentLid][akey].selbst_bem=bemEl.value;
+    if(!S.bewertungen[currentLid][sk])S.bewertungen[currentLid][sk]={};
+    if(!S.bewertungen[currentLid][sk][akey])S.bewertungen[currentLid][sk][akey]={};
+    S.bewertungen[currentLid][sk][akey].selbst_bem=bemEl.value;
   }
-  // Nicht-Admin schreibt auf Admin-Pfad (Firestore Rules: allow write wenn adminUid matches)
-  const targetUid=S._adminUid||uid();
-  await wj('users/'+targetUid+'/bewertungen/data',S.bewertungen);
-  toast('✓ Bewertung gespeichert');
+  showLoading(true);
+  try{
+    if(userProfile?.role!=='admin' && S._adminUid){
+      // Nicht-Admin schreibt in seinen eigenen Pfad unter abt_submissions
+      const submission={
+        lid:currentLid, sem:sk, abtId, abteilung:userProfile.abteilung,
+        bewertungen:S.bewertungen[currentLid]?.[sk]?.['abt_'+abtId]||{},
+        timestamp:new Date().toISOString(), authorUid:uid()
+      };
+      await wj('users/'+S._adminUid+'/abt_submissions/'+currentLid+'_'+sk+'_'+abtId, submission);
+      // Auch lokal merken
+      if(!S.bewertungen[currentLid])S.bewertungen[currentLid]={};
+      if(!S.bewertungen[currentLid][sk])S.bewertungen[currentLid][sk]={};
+      S.bewertungen[currentLid][sk]['abt_'+abtId]=submission.bewertungen;
+      toast('✓ Bewertung übermittelt');
+    } else {
+      await wj('users/'+uid()+'/bewertungen/data',S.bewertungen);
+      toast('✓ Bewertung gespeichert');
+    }
+  }catch(e){toast('Fehler: '+e.message,'red');}
+  showLoading(false);
 }
 
 function setFinalGrade(key,grade){
+  const sk='sem'+bbCurrentSem;
   if(!S.bewertungen[currentLid])S.bewertungen[currentLid]={};
-  if(!S.bewertungen[currentLid].final)S.bewertungen[currentLid].final={};
-  S.bewertungen[currentLid].final[key]=grade;
+  if(!S.bewertungen[currentLid][sk])S.bewertungen[currentLid][sk]={};
+  if(!S.bewertungen[currentLid][sk].final)S.bewertungen[currentLid][sk].final={};
+  S.bewertungen[currentLid][sk].final[key]=grade;
   const btn=document.querySelector(`[onclick="window.setFinalGrade('${key}','${grade}')"]`);
   if(btn){btn.closest('.abcd-btns')?.querySelectorAll('.abcd-btn').forEach(b=>b.className='abcd-btn');btn.className=`abcd-btn sel-${grade}`;}
 }
 function setFinalComment(key,val){
+  const sk='sem'+bbCurrentSem;
   if(!S.bewertungen[currentLid])S.bewertungen[currentLid]={};
-  if(!S.bewertungen[currentLid].final)S.bewertungen[currentLid].final={};
-  S.bewertungen[currentLid].final[key+'_c']=val;
+  if(!S.bewertungen[currentLid][sk])S.bewertungen[currentLid][sk]={};
+  if(!S.bewertungen[currentLid][sk].final)S.bewertungen[currentLid][sk].final={};
+  S.bewertungen[currentLid][sk].final[key+'_c']=val;
 }
 async function saveFinalBew(){
+  const sk='sem'+bbCurrentSem;
   if(!S.bewertungen[currentLid])S.bewertungen[currentLid]={};
-  if(!S.bewertungen[currentLid].final)S.bewertungen[currentLid].final={};
-  const f=S.bewertungen[currentLid].final;
+  if(!S.bewertungen[currentLid][sk])S.bewertungen[currentLid][sk]={};
+  if(!S.bewertungen[currentLid][sk].final)S.bewertungen[currentLid][sk].final={};
+  const f=S.bewertungen[currentLid][sk].final;
   ['ziel_betrieb','ziel_fach','ziel_meth','ziel_soz','ziel_selbst','diverses'].forEach(k=>{
     const el=document.getElementById('fin-'+k);if(el)f[k]=el.value;
   });
-  await wj(`users/${uid()}/bewertungen/data`,S.bewertungen);
-  toast('✓ Finale Bewertung gespeichert');
+  showLoading(true);
+  await wj('users/'+uid()+'/bewertungen/data',S.bewertungen);
+  showLoading(false);
+  toast('✓ Bildungsbericht S'+bbCurrentSem+' gespeichert');
 }
 function generateBB(){
   const l=S.lehrlinge.find(x=>x.id===currentLid);if(!l)return;
@@ -1185,7 +1268,29 @@ function generateBB(){
 // QV VORBEREITUNG (mit eigenen Aufgaben / Szenarien)
 // ══════════════════════════════════════════════════════════════
 function getAllSzenarien(){
-  return [...QV_SZENARIEN_DEFAULT,...S.szenarien];
+  // Versteckte Default-Szenarien filtern
+  const hidden=S.hiddenDefaultSzenarien||[];
+  const defaults=QV_SZENARIEN_DEFAULT.filter(s=>!hidden.includes(s.id));
+  return [...defaults,...S.szenarien];
+}
+async function deleteDefaultSzenario(szId){
+  if(!confirm('Standard-Szenario ausblenden? Es wird nur für dich versteckt.'))return;
+  if(!S.hiddenDefaultSzenarien)S.hiddenDefaultSzenarien=[];
+  S.hiddenDefaultSzenarien.push(szId);
+  await wj('users/'+uid()+'/einstellungen/data',{...S.einstellungen,hiddenDefaultSzenarien:S.hiddenDefaultSzenarien});
+  toast('Szenario ausgeblendet');renderQVSzenarien();
+}
+async function resetDefaultSzenarien(){
+  S.hiddenDefaultSzenarien=[];
+  await wj('users/'+uid()+'/einstellungen/data',{...S.einstellungen,hiddenDefaultSzenarien:[]});
+  toast('Standard-Szenarien wiederhergestellt');renderQVSzenarien();
+}
+async function saveAsVorlage(szId){
+  // Speichert ein custom Szenario als globale Vorlage (unter admin-uid für alle Lehrlinge zugänglich)
+  const sz=S.szenarien.find(s=>s.id===szId);if(!sz)return;
+  const vorlage={...sz, isVorlage:true, _ts:Date.now()};
+  await wj('users/'+uid()+'/szenarien_vorlagen/'+szId, vorlage);
+  toast('✓ Als Vorlage gespeichert — verfügbar für alle Lehrlinge');
 }
 function renderQV(){
   makeLB('qv-lb');
@@ -1240,7 +1345,11 @@ function renderQVSzenarien(){
         </div>
         <div style="display:flex;gap:5px;align-items:center;">
           <span class="tag ${allDone?'tg':done.length>0?'ty':'tr'}">${done.length}/${sz.aufgaben.length}</span>
-          ${isCustom?`<button class="btn btn-sm" style="background:transparent;border:1px solid var(--red);color:var(--red-l);" onclick="window.deleteSzenario('${sz.id}')">🗑</button>`:''}
+          ${isCustom
+            ? `<button class="btn btn-sm" title="Als Vorlage speichern" style="background:transparent;border:1px solid var(--gold);color:var(--gold);" onclick="window.saveAsVorlage('${sz.id}')">⭐</button>
+               <button class="btn btn-sm" style="background:transparent;border:1px solid var(--red);color:var(--red-l);" onclick="window.deleteSzenario('${sz.id}')">🗑</button>`
+            : `<button class="btn btn-sm" title="Standard-Szenario ausblenden" style="background:transparent;border:1px solid var(--border);color:var(--dim);" onclick="window.deleteDefaultSzenario('${sz.id}')">✕</button>`
+          }
         </div>
       </div>
       <div style="margin-top:8px;">
@@ -1256,7 +1365,11 @@ function renderQVSzenarien(){
       <button class="btn btn-out btn-sm" style="margin-top:8px;" onclick="window.openAddAufgabe('${sz.id}')">+ Aufgabe hinzufügen</button>
     </div>`;
   });
-  html+=`<button class="btn btn-gold" style="width:100%;margin-top:8px;" onclick="window.openModal('szenario')">+ Neues Szenario erstellen</button>`;
+  const hidden=S.hiddenDefaultSzenarien||[];
+  html+=`<div style="display:flex;gap:6px;margin-top:8px;">
+    <button class="btn btn-gold" style="flex:1;" onclick="window.openModal('szenario')">+ Neues Szenario erstellen</button>
+    ${hidden.length?`<button class="btn btn-out btn-sm" onclick="window.resetDefaultSzenarien()" title="Ausgeblendete Standard-Szenarien wiederherstellen">↺ Standards</button>`:''}
+  </div>`;
   document.getElementById('qv-szenarien').innerHTML=html;
 }
 
@@ -1375,217 +1488,294 @@ function renderEinsatz(){
   renderEpPalette();
 }
 
+// ═══════════════════════════════════════════════════════════════
+// NEUER 3-LEHRJAHR KALENDER (ersetzt alte Year/Month/Week/Day Views)
+// ═══════════════════════════════════════════════════════════════
+let epDetailKW = null; // Angeklickte KW für Tag-Detail
+
 function renderEinsatzYear(){
-  if(!currentLid){document.getElementById('ep-main').innerHTML='<div class="dim" style="padding:20px;text-align:center;">Bitte Lernende/n auswählen</div>';return;}
-  const lid=currentLid;
-  const l=S.lehrlinge.find(x=>x.id===lid);
-  const year=new Date().getFullYear()+epYearOff;
-  document.getElementById('ep-label').textContent=`Jahresplan ${year} · ${l?.vorname||''} ${l?.nachname||''}`;
+  if(!currentLid){
+    document.getElementById('ep-main').innerHTML='<div class="dim" style="padding:20px;text-align:center;">Bitte Lernende/n auswählen</div>';
+    return;
+  }
+  const lid = currentLid;
+  const l = S.lehrlinge.find(x=>x.id===lid);
+  if(!l){document.getElementById('ep-main').innerHTML='';return;}
 
-  // Berechne alle KW des Jahres
-  const weeks=[];
-  for(let kw=1;kw<=53;kw++){
-    // Montag der KW berechnen (ISO)
-    const jan4=new Date(year,0,4);
-    const mon=new Date(jan4);
-    mon.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(kw-1)*7);
-    if(mon.getFullYear()>year)break;
-    // Freitag
-    const fri=new Date(mon);fri.setDate(mon.getDate()+4);
-    // Check ob KW in diesem Jahr liegt
-    if(mon.getFullYear()<year && fri.getFullYear()<year)continue;
-    weeks.push({kw,mon:new Date(mon),fri:new Date(fri)});
+  // Startjahr aus Ausbildungsstart (Default: aktuelles Jahr - lj + 1)
+  const startStr = l.start || (new Date().getFullYear()-((l.lj||1)-1))+'-08';
+  const [startY, startM] = startStr.split('-').map(Number);
+  // Lehrjahr 1: startM → startM+11 des Folgejahres; beginnt im August
+  // Lehrjahre: start August Year0, end Juli Year1 usw.
+
+  document.getElementById('ep-label').textContent = `3-Lehrjahr Einsatzplan · ${l.vorname} ${l.nachname}`;
+
+  // Hilfsfunktionen
+  function kwMonday(year, kw){
+    const jan4 = new Date(year,0,4);
+    const d = new Date(jan4);
+    d.setDate(jan4.getDate() - (jan4.getDay()||7) + 1 + (kw-1)*7);
+    return d;
+  }
+  function getKW(d){
+    const date = new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+    date.setUTCDate(date.getUTCDate()+4-(date.getUTCDay()||7));
+    const yearStart = new Date(Date.UTC(date.getUTCFullYear(),0,1));
+    return {kw:Math.ceil((((date-yearStart)/86400000)+1)/7), year:date.getUTCFullYear()};
+  }
+  function getSlotMulti(lid, dkey){
+    const ep = S.einsatzplan[lid]||{};
+    if(ep[dkey+'_multi']) return ep[dkey+'_multi'];
+    if(ep[dkey]) return [ep[dkey]];
+    return [];
   }
 
-  // Für jede KW: welche Abteilungen sind eingetragen? (Mo-Fr)
-  function getWeekAbts(lid,mon){
-    const abts=new Set();
-    for(let i=0;i<7;i++){
-      const d=new Date(mon);d.setDate(mon.getDate()+i);
-      const k=getSlot(lid,dk(d));
-      if(k)abts.add(k);
+  // Berechne alle Wochen für 3 Lehrjahre
+  function getWeeksForLJ(lj){
+    // LJ beginnt im August des (startY + lj - 1)
+    const ljStartYear = startY + (lj-1);
+    const ljStart = new Date(ljStartYear, startM-1, 1); // z.B. 1.8.2024
+    const ljEnd = new Date(ljStartYear+1, startM-1, 0); // 31.7.2025
+
+    const weeks = [];
+    // Gehe von ljStart bis ljEnd, eine Woche auf einmal
+    let cur = new Date(ljStart);
+    // Gehe zum Montag der ersten KW
+    while(cur.getDay() !== 1) cur.setDate(cur.getDate()-1);
+
+    while(cur <= ljEnd){
+      const mon = new Date(cur);
+      const fri = new Date(cur); fri.setDate(cur.getDate()+4);
+      const sun = new Date(cur); sun.setDate(cur.getDate()+6);
+      const {kw, year:kwYear} = getKW(mon);
+      // Dkeys für Mo-Fr
+      const dkeys = [];
+      for(let i=0;i<7;i++){
+        const d=new Date(cur); d.setDate(cur.getDate()+i);
+        dkeys.push(d.toISOString().slice(0,10));
+      }
+      weeks.push({kw, kwYear, mon, fri, sun, dkeys,
+        inRange: mon <= ljEnd && sun >= ljStart
+      });
+      cur.setDate(cur.getDate()+7);
     }
-    return [...abts];
+    return weeks.filter(w=>w.inRange);
   }
 
-  let html=`<div style="overflow-x:auto;">
-    <table class="year-table">
-      <thead><tr>
-        <th style="width:50px;">KW</th>
-        <th>Zeitraum</th>
-        <th>Einsatzbereich(e)</th>
-        <th style="width:80px;">Aktionen</th>
-      </tr></thead><tbody>`;
+  function getWeekAbtsMulti(lid, dkeys){
+    const all = new Set();
+    dkeys.forEach(dkey=>{
+      getSlotMulti(lid,dkey).forEach(k=>all.add(k));
+    });
+    return [...all];
+  }
 
-  // Gruppiere aufeinanderfolgende KW mit gleichen Abteilungen
-  let i=0;
-  while(i<weeks.length){
-    const w=weeks[i];
-    const abts=getWeekAbts(lid,w.mon);
-    const abtsKey=abts.sort().join(',');
-    // Wie viele folgende KW haben dieselbe Belegung?
-    let span=1;
-    while(i+span<weeks.length){
-      const next=weeks[i+span];
-      const nextAbts=getWeekAbts(lid,next.mon).sort().join(',');
-      if(nextAbts===abtsKey && abtsKey!=='')span++;
-      else break;
+  function renderAbtPills(abts, small=false){
+    if(!abts.length) return '';
+    return abts.map(k=>{
+      const a=ABTS.find(x=>x.k===k);
+      if(!a) return '';
+      return `<span class="ep-mini-btn ${a.cls}" style="font-size:${small?'8':'10'}px;padding:1px 5px;">${a.icon} ${small?'':a.l}</span>`;
+    }).join('');
+  }
+
+  // Render HTML: 3 Lehrjahr-Blöcke
+  let html = '';
+
+  for(let lj=1;lj<=3;lj++){
+    const ljYear = startY + (lj-1);
+    const weeks = getWeeksForLJ(lj);
+
+    html += `<div style="margin-bottom:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div style="font-weight:700;font-size:14px;color:var(--gold);">
+          ${lj}. Lehrjahr · ${ljYear}/${ljYear+1}
+        </div>
+        <button class="btn btn-out btn-sm" onclick="window.openYearBulk(${ljYear},${lj})">📋 Bulk-Planung</button>
+      </div>
+      <div style="overflow-x:auto;">
+      <table class="year-table" style="min-width:700px;">
+        <thead><tr>
+          <th style="width:48px;">KW</th>
+          <th style="width:100px;">Zeitraum</th>
+          <th>Einsatzbereich</th>
+          <th style="width:70px;">Details</th>
+        </tr></thead><tbody>`;
+
+    // Gruppiere aufeinanderfolgende Wochen mit gleicher Belegung
+    let i=0;
+    while(i < weeks.length){
+      const w = weeks[i];
+      const abts = getWeekAbtsMulti(lid, w.dkeys);
+      const abtsKey = [...abts].sort().join(',');
+
+      // Wie viele Folgewochen mit gleicher Belegung?
+      let span = 1;
+      while(i+span < weeks.length){
+        const nw = weeks[i+span];
+        const nAbts = getWeekAbtsMulti(lid, nw.dkeys).sort().join(',');
+        if(nAbts === abtsKey && abtsKey !== '') span++;
+        else break;
+      }
+      const wEnd = weeks[Math.min(i+span-1, weeks.length-1)];
+      const kwLabel = span>1 ? `KW ${w.kw}–${wEnd.kw}` : `KW ${w.kw}`;
+      const dateStr = w.mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'})+'–'+
+                      wEnd.fri.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'});
+
+      const today = new Date();
+      const isCurrentWeek = today >= w.mon && today <= w.sun;
+      const pills = renderAbtPills(abts);
+      const rowStyle = isCurrentWeek ? 'background:rgba(201,168,76,.08);font-weight:600;' : '';
+
+      html += `<tr style="${rowStyle}" class="${abts.length?'':'empty-row'}">
+        <td><b style="${isCurrentWeek?'color:var(--gold);':''}">${kwLabel}</b>${isCurrentWeek?' ◄':''}</td>
+        <td style="font-size:10px;color:var(--dim);">${dateStr}</td>
+        <td>
+          <div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;">
+            ${pills||'<span class="dim" style="font-size:11px;">— nicht geplant</span>'}
+            <button class="btn btn-sm" style="background:transparent;border:1px solid var(--border);color:var(--dim);font-size:10px;padding:2px 6px;margin-left:4px;" 
+              onclick="window.openYearEdit(${w.kw},${w.kwYear})">✏️</button>
+          </div>
+        </td>
+        <td>
+          <button class="btn btn-out btn-sm" style="font-size:10px;" 
+            onclick="window.openKWDetail(${w.kw},${w.kwYear})">📅 Tage</button>
+        </td>
+      </tr>`;
+      i += span;
     }
-    const wEnd=weeks[Math.min(i+span-1,weeks.length-1)];
-    const kwLabel=span>1?`KW ${w.kw}–${wEnd.kw}`:`KW ${w.kw}`;
-    const dateLabel=w.mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'})+'–'+wEnd.fri.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit',year:'2-digit'});
-    const abtPills=abts.length?abts.map(k=>{const a=ABTS.find(x=>x.k===k);return a?`<span class="ep-mini-btn ${a.cls}" style="font-size:10px;">${a.icon} ${a.l}</span>`:''}).join(''):'<span class="dim" style="font-size:11px;">— nicht geplant</span>';
 
-    html+=`<tr class="year-row ${abts.length?'':'empty-row'}" id="yr-row-${w.kw}">
-      <td><strong>${kwLabel}</strong></td>
-      <td style="font-size:11px;color:var(--dim);">${dateLabel}</td>
-      <td><div style="display:flex;flex-wrap:wrap;gap:3px;">${abtPills}</div></td>
-      <td><button class="btn btn-out btn-sm" onclick="window.openYearEdit(${w.kw},${year})">✏️</button></td>
-    </tr>`;
-    i+=span;
+    html += `</tbody></table></div></div>`;
   }
 
-  html+=`</tbody></table></div>
-    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
-      <button class="btn btn-gold" onclick="window.exportJahresplan()">📄 PDF Export</button>
-      <button class="btn btn-out" onclick="window.openYearBulk(${year})">📋 Mehrere KW auf einmal planen</button>
+  html += `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+    <button class="btn btn-gold" onclick="window.exportJahresplan()">📄 PDF 3-Jahresplan exportieren</button>
+  </div>`;
+
+  document.getElementById('ep-main').innerHTML = html;
+}
+
+// ═══ KW Detail-Modal (einzelne Tage) ═══
+function openKWDetail(kw, year){
+  const lid = currentLid;
+  const jan4 = new Date(year,0,4);
+  const mon = new Date(jan4);
+  mon.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(kw-1)*7);
+
+  const days = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
+  let html = `<div class="modal-t">KW ${kw} · ${mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit',year:'numeric'})}</div>`;
+  html += `<div class="card-s" style="margin-bottom:12px;">Optionale Tages-Feindefinition · Klicke auf eine Abteilung pro Tag</div>`;
+
+  for(let i=0;i<7;i++){
+    const d = new Date(mon); d.setDate(mon.getDate()+i);
+    const dkey = d.toISOString().slice(0,10);
+    const ep = S.einsatzplan[lid]||{};
+    const current = ep[dkey+'_multi']||( ep[dkey]?[ep[dkey]]:[] );
+    html += `<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border);">
+      <div style="font-size:11px;font-weight:600;margin-bottom:5px;color:${i>=5?'var(--dim)':'var(--cream)'};">
+        ${days[i]} ${d.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'})}${i>=5?' (WE)':''}
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;" id="day-sel-${dkey}">
+        ${ABTS.map(a=>`<div class="ep-mini-btn ${a.cls} ${current.includes(a.k)?'ye-sel':''}" 
+          style="cursor:pointer;border:2px solid ${current.includes(a.k)?'var(--gold)':'transparent'};"
+          onclick="window.toggleDayAbt(this,'${dkey}','${a.k}')" data-k="${a.k}">${a.icon} ${a.l}</div>`).join('')}
+      </div>
     </div>`;
-
-  document.getElementById('ep-main').innerHTML=html;
-}
-
-let yearEditKW=null,yearEditYear=null;
-function openYearEdit(kw,year){
-  yearEditKW=kw;yearEditYear=year;
-  const lid=currentLid;
-  // Berechne Montag der KW
-  const jan4=new Date(year,0,4);
-  const mon=new Date(jan4);
-  mon.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(kw-1)*7);
-  // Zeige aktuelle Belegung + Palette
-  const modal=document.getElementById('modal-year-edit');
-  document.getElementById('ye-kw-lbl').textContent='KW '+kw+' · '+mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit',year:'numeric'})+' – ';
-  const fri=new Date(mon);fri.setDate(mon.getDate()+4);
-  document.getElementById('ye-kw-lbl').textContent='KW '+kw+' ('+mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'})+'–'+fri.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit',year:'2-digit'})+')';
-  // Current selection
-  const cur=new Set();
-  for(let i=0;i<7;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);const k=getSlot(lid,dk(d));if(k)cur.add(k);}
-  document.getElementById('ye-palette').innerHTML=ABTS.map(a=>`
-    <div class="ye-abt-btn ep-mini-btn ${a.cls} ${cur.has(a.k)?'ye-sel':''}" 
-      onclick="window.toggleYeAbt(this,'${a.k}')" data-k="${a.k}">${a.icon} ${a.l}</div>`).join('');
-  openModal('year-edit');
-}
-
-function toggleYeAbt(el,k){el.classList.toggle('ye-sel');}
-
-async function saveYearEdit(){
-  const kw=yearEditKW,year=yearEditYear,lid=currentLid;
-  const jan4=new Date(year,0,4);
-  const mon=new Date(jan4);
-  mon.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(kw-1)*7);
-  const selected=[...document.querySelectorAll('.ye-abt-btn.ye-sel')].map(el=>el.dataset.k);
-  // Für jeden Tag Mo-Fr setzen
-  for(let i=0;i<5;i++){
-    const d=new Date(mon);d.setDate(mon.getDate()+i);
-    const dkey=dk(d);
-    if(!S.einsatzplan[lid])S.einsatzplan[lid]={};
-    if(selected.length===0){delete S.einsatzplan[lid][dkey];}
-    else{S.einsatzplan[lid][dkey]=selected[0];} // Primäre Abteilung für Einzelfeld
-    // Mehrere: als Array in einem Sonderfeld speichern
-    if(selected.length>1) S.einsatzplan[lid][dkey+'_multi']=selected;
-    else delete S.einsatzplan[lid][dkey+'_multi'];
   }
-  await wj('users/'+uid()+'/einsatzplan/data',S.einsatzplan);
-  closeModal('year-edit');toast('✓ KW '+kw+' gespeichert');renderEinsatzYear();
+
+  html += `<div class="modal-actions">
+    <button class="btn btn-out" onclick="window.closeModal('kw-detail')">Schliessen</button>
+    <button class="btn btn-gold" onclick="window.saveKWDetail(${kw},${year})">✓ Speichern</button>
+  </div>`;
+
+  document.getElementById('kw-detail-body').innerHTML = html;
+  openModal('kw-detail');
 }
 
-function openYearBulk(year){
+function toggleDayAbt(el, dkey, k){
+  el.classList.toggle('ye-sel');
+  el.style.borderColor = el.classList.contains('ye-sel') ? 'var(--gold)' : 'transparent';
+}
+
+async function saveKWDetail(kw, year){
+  const lid = currentLid;
+  const jan4 = new Date(year,0,4);
+  const mon = new Date(jan4);
+  mon.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(kw-1)*7);
+
+  if(!S.einsatzplan[lid]) S.einsatzplan[lid]={};
+
+  for(let i=0;i<7;i++){
+    const d = new Date(mon); d.setDate(mon.getDate()+i);
+    const dkey = d.toISOString().slice(0,10);
+    const container = document.getElementById('day-sel-'+dkey);
+    if(!container) continue;
+    const selected = [...container.querySelectorAll('.ye-sel')].map(el=>el.dataset.k);
+    if(selected.length===0){
+      delete S.einsatzplan[lid][dkey];
+      delete S.einsatzplan[lid][dkey+'_multi'];
+    } else {
+      S.einsatzplan[lid][dkey] = selected[0];
+      if(selected.length>1) S.einsatzplan[lid][dkey+'_multi'] = selected;
+      else delete S.einsatzplan[lid][dkey+'_multi'];
+    }
+  }
+  showLoading(true);
+  await wj('users/'+uid()+'/einsatzplan/data', S.einsatzplan);
+  showLoading(false);
+  closeModal('kw-detail');
+  toast('✓ KW '+kw+' gespeichert');
+  renderEinsatzYear();
+}
+
+function openYearEdit(kw,year){
+  // KW Detail öffnen (alias)
+  openKWDetail(kw,year);
+}
+function openYearBulk(year,lj){
   document.getElementById('yb-year').textContent=year;
-  document.getElementById('yb-kw-von').value=1;
-  document.getElementById('yb-kw-bis').value=4;
-  document.getElementById('yb-palette').innerHTML=ABTS.map(a=>`
-    <div class="ye-abt-btn ep-mini-btn ${a.cls}" onclick="window.toggleYeAbt(this,'${a.k}')" data-k="${a.k}">${a.icon} ${a.l}</div>`).join('');
+  const ljEl=document.getElementById('yb-lj');if(ljEl)ljEl.textContent=lj||'';
+  // KW-Start: LJ1 beginnt ~KW32 (August)
+  const startKW=lj===1?32:1;
+  const endKW=lj===1?36:5;
+  document.getElementById('yb-kw-von').value=startKW;
+  document.getElementById('yb-kw-bis').value=endKW;
+  document.getElementById('yb-palette').innerHTML=ABTS.map(a=>
+    `<div class="ye-abt-btn ep-mini-btn ${a.cls}" onclick="window.toggleYeAbt(this,'${a.k}')" data-k="${a.k}">${a.icon} ${a.l}</div>`).join('');
   openModal('year-bulk');
 }
-
 async function saveYearBulk(){
-  const year=parseInt(document.getElementById('yb-year').textContent);
+  const yearEl=document.getElementById('yb-year');
+  const year=parseInt(yearEl?.textContent||new Date().getFullYear());
   const von=parseInt(document.getElementById('yb-kw-von').value);
   const bis=parseInt(document.getElementById('yb-kw-bis').value);
   const selected=[...document.querySelectorAll('#yb-palette .ye-abt-btn.ye-sel')].map(el=>el.dataset.k);
-  if(!selected.length){toast('Bitte Abteilung wählen','red');return;}
+  if(!selected.length){toast('Bitte mind. eine Abteilung wählen','red');return;}
   if(von>bis){toast('Von-KW muss ≤ Bis-KW sein','red');return;}
   const lid=currentLid;
+  if(!S.einsatzplan[lid])S.einsatzplan[lid]={};
   for(let kw=von;kw<=bis;kw++){
     const jan4=new Date(year,0,4);
     const mon=new Date(jan4);
     mon.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(kw-1)*7);
     for(let i=0;i<5;i++){
       const d=new Date(mon);d.setDate(mon.getDate()+i);
-      const dkey=dk(d);
-      if(!S.einsatzplan[lid])S.einsatzplan[lid]={};
+      const dkey=d.toISOString().slice(0,10);
       S.einsatzplan[lid][dkey]=selected[0];
-      if(selected.length>1) S.einsatzplan[lid][dkey+'_multi']=selected;
+      if(selected.length>1)S.einsatzplan[lid][dkey+'_multi']=selected;
+      else delete S.einsatzplan[lid][dkey+'_multi'];
     }
   }
+  showLoading(true);
   await wj('users/'+uid()+'/einsatzplan/data',S.einsatzplan);
-  closeModal('year-bulk');toast(`✓ KW ${von}–${bis} gespeichert`);renderEinsatzYear();
+  showLoading(false);
+  closeModal('year-bulk');
+  toast(`✓ KW ${von}–${bis} gespeichert`);
+  renderEinsatzYear();
 }
-
-function exportJahresplan(){
-  const lid=currentLid;
-  const l=S.lehrlinge.find(x=>x.id===lid);
-  const year=new Date().getFullYear()+epYearOff;
-  // Berechne 3-Jahres-Plan
-  const startYear=l?.start?parseInt(l.start.substring(0,4)):year;
-  const years=[startYear,startYear+1,startYear+2];
-  
-  let printHtml=`<html><head><meta charset="UTF-8"><title>Einsatzplan ${l?.vorname} ${l?.nachname}</title>
-  <style>
-    body{font-family:Arial,sans-serif;font-size:10px;color:#1a1a1a;margin:15mm;}
-    h1{font-size:14px;margin-bottom:2px;}
-    h2{font-size:11px;color:#555;margin-top:12px;margin-bottom:4px;border-bottom:1px solid #ccc;padding-bottom:2px;}
-    table{width:100%;border-collapse:collapse;margin-bottom:10px;}
-    th{background:#f0ebe0;font-size:9px;padding:4px 6px;border:1px solid #ccc;text-align:left;}
-    td{padding:3px 6px;border:1px solid #ddd;font-size:9px;vertical-align:middle;}
-    .empty{color:#aaa;}
-    .pill{display:inline-block;padding:1px 5px;border-radius:3px;margin:1px;font-size:8px;background:#e8e0d0;}
-    @media print{@page{margin:10mm;size:A4;}}
-  </style></head><body>
-  <h1>📅 Einsatzplan · ${l?.vorname||''} ${l?.nachname||''}</h1>
-  <div style="font-size:9px;color:#666;margin-bottom:6px;">${l?.lj||''}. Lehrjahr · Start: ${l?.start||''} · QV: ${l?.qvDatum||S.einstellungen.qvDatum||''} · Exportiert: ${new Date().toLocaleDateString('de-CH')}</div>`;
-
-  years.forEach(yr=>{
-    printHtml+=`<h2>Lehrjahr ${yr-startYear+1} · ${yr}</h2>
-    <table><thead><tr><th>KW</th><th>Zeitraum</th><th>Einsatzbereich(e)</th></tr></thead><tbody>`;
-    
-    for(let kw=1;kw<=53;kw++){
-      const jan4=new Date(yr,0,4);
-      const mon=new Date(jan4);
-      mon.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(kw-1)*7);
-      if(mon.getFullYear()>yr)break;
-      if(mon.getFullYear()<yr){const fri2=new Date(mon);fri2.setDate(mon.getDate()+4);if(fri2.getFullYear()<yr)continue;}
-      
-      const abts=new Set();
-      for(let i=0;i<5;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);const k=getSlot(lid,dk(d));if(k)abts.add(k);}
-      // Check multi
-      const multiSlots=new Set();
-      for(let i=0;i<5;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);const mk=(S.einsatzplan[lid]||{})[dk(d)+'_multi'];if(mk)mk.forEach(x=>multiSlots.add(x));}
-      const allAbts=[...new Set([...abts,...multiSlots])];
-      
-      const fri=new Date(mon);fri.setDate(mon.getDate()+4);
-      const dateStr=mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'})+'–'+fri.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'});
-      const pills=allAbts.length?allAbts.map(k=>{const a=ABTS.find(x=>x.k===k);return a?`<span class="pill">${a.icon} ${a.l}</span>`:''}).join(''):'<span class="empty">—</span>';
-      printHtml+=`<tr><td><b>KW ${kw}</b></td><td>${dateStr}</td><td>${pills}</td></tr>`;
-    }
-    printHtml+=`</tbody></table>`;
-  });
-  
-  printHtml+=`</body></html>`;
-  const w=window.open('','_blank','width=800,height=600');
-  w.document.write(printHtml);
-  w.document.close();
-  setTimeout(()=>w.print(),500);
+function toggleYeAbt(el,k){
+  el.classList.toggle('ye-sel');
+  el.style.borderColor=el.classList.contains('ye-sel')?'var(--gold)':'transparent';
 }
 
 function renderEinsatzMonth(){
@@ -2211,8 +2401,7 @@ function renderDB(){
         <div style="display:none;padding-left:35px;margin-top:6px;">${renderJugendschutz(l.id)}</div>
       </div>`;
     }).join('');
-  document.getElementById('db-qv-datum').value=S.einstellungen.qvDatum||'2026-07-01';
-  // Per-lehrling QV in der Lehrlings-Tabelle wird via renderJugendschutz gezeigt
+  // QV-Datum ist pro Lehrling — siehe Lehrling bearbeiten
 }
 async function saveQVDatum(){
   S.einstellungen.qvDatum=document.getElementById('db-qv-datum').value;
@@ -2227,6 +2416,100 @@ async function saveLehrlingQV(lid){
   toast('✓ QV-Datum für '+l.vorname+' gespeichert');
   renderQV();renderOverview();
 }
+function exportJahresplan(){
+  const lid=currentLid;
+  const l=S.lehrlinge.find(x=>x.id===lid);if(!l)return;
+  const startStr=l.start||(new Date().getFullYear()-((l.lj||1)-1))+'-08';
+  const [startY]=startStr.split('-').map(Number);
+
+  function getKWMonday(year,kw){
+    const jan4=new Date(year,0,4);
+    const d=new Date(jan4);
+    d.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(kw-1)*7);
+    return d;
+  }
+  function getKW(d){
+    const date=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+    date.setUTCDate(date.getUTCDate()+4-(date.getUTCDay()||7));
+    const ys=new Date(Date.UTC(date.getUTCFullYear(),0,1));
+    return{kw:Math.ceil((((date-ys)/86400000)+1)/7),year:date.getUTCFullYear()};
+  }
+  function getSlotMultiEx(lid,dkey){
+    const ep=S.einsatzplan[lid]||{};
+    if(ep[dkey+'_multi'])return ep[dkey+'_multi'];
+    if(ep[dkey])return[ep[dkey]];
+    return[];
+  }
+  function getWeeksForLJEx(lj){
+    const ljY=startY+(lj-1);
+    const startM=parseInt(startStr.split('-')[1]||8);
+    const ljStart=new Date(ljY,startM-1,1);
+    const ljEnd=new Date(ljY+1,startM-1,0);
+    const weeks=[];
+    let cur=new Date(ljStart);
+    while(cur.getDay()!==1)cur.setDate(cur.getDate()-1);
+    while(cur<=ljEnd){
+      const mon=new Date(cur);
+      const fri=new Date(cur);fri.setDate(cur.getDate()+4);
+      const sun=new Date(cur);sun.setDate(cur.getDate()+6);
+      const{kw,year:kwYear}=getKW(mon);
+      const dkeys=[];
+      for(let i=0;i<5;i++){const d=new Date(cur);d.setDate(cur.getDate()+i);dkeys.push(d.toISOString().slice(0,10));}
+      if(mon<=ljEnd&&sun>=ljStart)weeks.push({kw,kwYear,mon,fri,dkeys});
+      cur.setDate(cur.getDate()+7);
+    }
+    return weeks;
+  }
+
+  let printHtml=`<html><head><meta charset="UTF-8"><title>Einsatzplan ${l.vorname} ${l.nachname}</title>
+  <style>
+    body{font-family:Arial,sans-serif;font-size:9px;color:#1a1a1a;margin:12mm;}
+    h1{font-size:13px;margin-bottom:2px;}h2{font-size:10px;color:#555;margin-top:10px;margin-bottom:3px;border-bottom:1px solid #bbb;padding-bottom:2px;}
+    table{width:100%;border-collapse:collapse;margin-bottom:8px;}
+    th{background:#f0ebe0;font-size:8px;padding:3px 5px;border:1px solid #ccc;text-align:left;}
+    td{padding:2px 5px;border:1px solid #ddd;font-size:8px;vertical-align:middle;}
+    .empty{color:#bbb;}.pill{display:inline-block;padding:1px 4px;border-radius:2px;margin:1px;font-size:7px;background:#e8e0d0;}
+    .cur{background:#fff8e8;}
+    @media print{@page{margin:8mm;size:A4;}}
+  </style></head><body>
+  <h1>📅 Einsatzplan · ${l.vorname} ${l.nachname}</h1>
+  <div style="font-size:8px;color:#666;margin-bottom:5px;">${l.lj}. Lehrjahr · Start: ${l.start} · QV: ${l.qvDatum||''} · Exportiert: ${new Date().toLocaleDateString('de-CH')}</div>`;
+
+  const today=new Date().toISOString().slice(0,10);
+  for(let lj=1;lj<=3;lj++){
+    const ljY=startY+(lj-1);
+    const weeks=getWeeksForLJEx(lj);
+    printHtml+=`<h2>${lj}. Lehrjahr · ${ljY}/${ljY+1}</h2>
+    <table><thead><tr><th>KW</th><th>Zeitraum</th><th>Einsatzbereich</th></tr></thead><tbody>`;
+    let i=0;
+    while(i<weeks.length){
+      const w=weeks[i];
+      const abts=new Set();
+      w.dkeys.forEach(dk=>{getSlotMultiEx(lid,dk).forEach(k=>abts.add(k));});
+      const abtsKey=[...abts].sort().join(',');
+      let span=1;
+      while(i+span<weeks.length){
+        const nw=weeks[i+span];
+        const nAbts=new Set();nw.dkeys.forEach(dk=>{getSlotMultiEx(lid,dk).forEach(k=>nAbts.add(k));});
+        if([...nAbts].sort().join(',')===abtsKey&&abtsKey!=='')span++;
+        else break;
+      }
+      const wEnd=weeks[Math.min(i+span-1,weeks.length-1)];
+      const kwLabel=span>1?`KW ${w.kw}–${wEnd.kw}`:`KW ${w.kw}`;
+      const dateStr=w.mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'})+'–'+wEnd.fri.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'});
+      const pills=[...abts].map(k=>{const a=ABTS.find(x=>x.k===k);return a?`<span class="pill">${a.icon} ${a.l}</span>`:''}).join('');
+      const isCur=w.dkeys.some(d=>d===today);
+      printHtml+=`<tr${isCur?' class="cur"':''}><td><b>${kwLabel}</b></td><td>${dateStr}</td><td>${pills||'<span class="empty">—</span>'}</td></tr>`;
+      i+=span;
+    }
+    printHtml+=`</tbody></table>`;
+  }
+  printHtml+=`</body></html>`;
+  const w=window.open('','_blank','width=900,height=700');
+  w.document.write(printHtml);w.document.close();
+  setTimeout(()=>w.print(),600);
+}
+
 async function exportBackup(){
   const bk={version:5,exportDatum:new Date().toISOString(),lehrlinge:S.lehrlinge,lernberichte:S.lernberichte,lzStatus:S.lzStatus,bewertungen:S.bewertungen,einsatzplan:S.einsatzplan,termine:S.termine,szenarien:S.szenarien};
   const a=document.createElement('a');
@@ -2291,7 +2574,10 @@ Object.assign(window,{
   editBenutzerRow,saveBenutzerEdit,approvePending,rejectPending,renderBenutzer,
   exportBackup,importBackup,saveQVDatum,saveLehrlingQV,renderDB,
   openYearEdit,toggleYeAbt,saveYearEdit,openYearBulk,saveYearBulk,exportJahresplan,
-  toggleTheme,applyTheme
+  openKWDetail,saveKWDetail,toggleDayAbt,
+  toggleTheme,applyTheme,
+  setBBSem,
+  deleteDefaultSzenario,resetDefaultSzenarien,saveAsVorlage
 });
 
 // Init nach DOM-Ready
@@ -2826,7 +3112,7 @@ textarea.fi{min-height:60px;resize:vertical;}
 <!-- DATENBANK -->
 <div class="section" id="sec-db">
   <div class="pg-title">Datenbank & Einstellungen</div>
-  <div class="pg-sub">Firebase Firestore · Backup · QV-Datum · Lernende verwalten</div>
+  <div class="pg-sub">Firebase Firestore · Backup · Lernende verwalten</div>
   <div class="g2">
     <div>
       <div class="card" style="margin-bottom:14px;">
@@ -2835,11 +3121,10 @@ textarea.fi{min-height:60px;resize:vertical;}
         <button class="btn btn-out" style="width:100%;margin-top:10px;" onclick="window.openModal('lehrling')">+ Lehrling hinzufügen</button>
       </div>
       <div class="card">
-        <div class="card-t">QV-Datum</div>
-        <div class="card-s">Stichtag für den Countdown</div>
-        <div style="display:flex;gap:8px;">
-          <input class="fi" type="date" id="db-qv-datum" style="flex:1;">
-          <button class="btn btn-gold" onclick="window.saveQVDatum()">Speichern</button>
+        <div class="card-t">Info</div>
+        <div style="font-size:12px;color:var(--dim);line-height:1.7;">
+          Das QV-Datum wird pro Lehrling im Tab <b>Datenbank → Lernende verwalten → ✏️ Bearbeiten</b> hinterlegt.<br>
+          Der Countdown erscheint auf der Übersicht und im QV-Tab.
         </div>
       </div>
     </div>
@@ -2966,6 +3251,13 @@ textarea.fi{min-height:60px;resize:vertical;}
 </div>
 
 
+<!-- MODAL: KW Detail (Tage) -->
+<div class="modal-overlay" id="modal-kw-detail">
+  <div class="modal" style="max-width:600px;">
+    <div id="kw-detail-body"></div>
+  </div>
+</div>
+
 <!-- MODAL: Lehrling bearbeiten -->
 <div class="modal-overlay" id="modal-edit-lehrling">
   <div class="modal">
@@ -3002,7 +3294,7 @@ textarea.fi{min-height:60px;resize:vertical;}
 <!-- MODAL: Jahresplan Bulk -->
 <div class="modal-overlay" id="modal-year-bulk">
   <div class="modal">
-    <div class="modal-t">Mehrere KW planen · <span id="yb-year"></span></div>
+    <div class="modal-t">Mehrere KW planen · <span id="yb-lj"></span>. Lehrjahr <span id="yb-year"></span></div>
     <div class="card-s">Trage für einen Zeitraum von Kalenderwochen gleich den Einsatzbereich ein</div>
     <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:10px;">
       <div style="flex:1;"><label class="fl">KW von</label><input class="fi" type="number" id="yb-kw-von" min="1" max="53" value="1"></div>
