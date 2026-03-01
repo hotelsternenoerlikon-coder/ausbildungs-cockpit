@@ -1499,7 +1499,7 @@ let epDetailKW = null; // Angeklickte KW für Tag-Detail
 
 function renderEinsatzYear(){
   if(!currentLid){
-    document.getElementById('ep-main').innerHTML='<div class="dim" style="padding:20px;text-align:center;">Bitte Lernende/n auswählen</div>';
+    document.getElementById('ep-main').innerHTML='<div class="dim" style="padding:20px;text-align:center;">Bitte Lernende/n auswählen<\/div>';
     return;
   }
   const lid = currentLid;
@@ -1579,7 +1579,7 @@ function renderEinsatzYear(){
     return abts.map(k=>{
       const a=ABTS.find(x=>x.k===k);
       if(!a) return '';
-      return `<span class="ep-mini-btn ${a.cls}" style="font-size:${small?'8':'10'}px;padding:1px 5px;">${a.icon} ${small?'':a.l}</span>`;
+      return `<span class="ep-mini-btn ${a.cls}" style="font-size:${small?'8':'10'}px;padding:1px 5px;">${a.icon} ${small?'':a.l}<\/span>`;
     }).join('');
   }
 
@@ -1594,17 +1594,17 @@ function renderEinsatzYear(){
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
         <div style="font-weight:700;font-size:14px;color:var(--gold);">
           ${lj}. Lehrjahr · ${ljYear}/${ljYear+1}
-        </div>
+        <\/div>
         <button class="btn btn-out btn-sm" onclick="window.openYearBulk(${ljYear},${lj})">📋 Bulk-Planung</button>
-      </div>
+      <\/div>
       <div style="overflow-x:auto;">
       <table class="year-table" style="min-width:700px;">
         <thead><tr>
-          <th style="width:48px;">KW</th>
-          <th style="width:100px;">Zeitraum</th>
-          <th>Einsatzbereich</th>
-          <th style="width:70px;">Details</th>
-        </tr></thead><tbody>`;
+          <th style="width:48px;">KW<\/th>
+          <th style="width:100px;">Zeitraum<\/th>
+          <th>Einsatzbereich<\/th>
+          <th style="width:70px;">Details<\/th>
+        <\/tr><\/thead><tbody>`;
 
     // Gruppiere aufeinanderfolgende Wochen mit gleicher Belegung
     let i=0;
@@ -1632,29 +1632,29 @@ function renderEinsatzYear(){
       const rowStyle = isCurrentWeek ? 'background:rgba(201,168,76,.08);font-weight:600;' : '';
 
       html += `<tr style="${rowStyle}" class="${abts.length?'':'empty-row'}">
-        <td><b style="${isCurrentWeek?'color:var(--gold);':''}">${kwLabel}</b>${isCurrentWeek?' ◄':''}</td>
-        <td style="font-size:10px;color:var(--dim);">${dateStr}</td>
+        <td><b style="${isCurrentWeek?'color:var(--gold);':''}">${kwLabel}<\/b>${isCurrentWeek?' ◄':''}<\/td>
+        <td style="font-size:10px;color:var(--dim);">${dateStr}<\/td>
         <td>
           <div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;">
-            ${pills||'<span class="dim" style="font-size:11px;">— nicht geplant</span>'}
+            ${pills||'<span class="dim" style="font-size:11px;">— nicht geplant<\/span>'}
             <button class="btn btn-sm" style="background:transparent;border:1px solid var(--border);color:var(--dim);font-size:10px;padding:2px 6px;margin-left:4px;" 
               onclick="window.openYearEdit(${w.kw},${w.kwYear})">✏️</button>
-          </div>
-        </td>
+          <\/div>
+        <\/td>
         <td>
           <button class="btn btn-out btn-sm" style="font-size:10px;" 
             onclick="window.openKWDetail(${w.kw},${w.kwYear})">📅 Tage</button>
-        </td>
-      </tr>`;
+        <\/td>
+      <\/tr>`;
       i += span;
     }
 
-    html += `</tbody></table></div></div>`;
+    html += `<\/tbody><\/table><\/div><\/div>`;
   }
 
   html += `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
     <button class="btn btn-gold" onclick="window.exportJahresplan()">📄 PDF 3-Jahresplan exportieren</button>
-  </div>`;
+  <\/div>`;
 
   document.getElementById('ep-main').innerHTML = html;
 }
@@ -1667,8 +1667,8 @@ function openKWDetail(kw, year){
   mon.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(kw-1)*7);
 
   const days = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
-  let html = `<div class="modal-t">KW ${kw} · ${mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit',year:'numeric'})}</div>`;
-  html += `<div class="card-s" style="margin-bottom:12px;">Optionale Tages-Feindefinition · Klicke auf eine Abteilung pro Tag</div>`;
+  let html = `<div class="modal-t">KW ${kw} · ${mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit',year:'numeric'})}<\/div>`;
+  html += `<div class="card-s" style="margin-bottom:12px;">Optionale Tages-Feindefinition · Klicke auf eine Abteilung pro Tag<\/div>`;
 
   for(let i=0;i<7;i++){
     const d = new Date(mon); d.setDate(mon.getDate()+i);
@@ -1678,19 +1678,19 @@ function openKWDetail(kw, year){
     html += `<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border);">
       <div style="font-size:11px;font-weight:600;margin-bottom:5px;color:${i>=5?'var(--dim)':'var(--cream)'};">
         ${days[i]} ${d.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'})}${i>=5?' (WE)':''}
-      </div>
+      <\/div>
       <div style="display:flex;flex-wrap:wrap;gap:4px;" id="day-sel-${dkey}">
         ${ABTS.map(a=>`<div class="ep-mini-btn ${a.cls} ${current.includes(a.k)?'ye-sel':''}" 
           style="cursor:pointer;border:2px solid ${current.includes(a.k)?'var(--gold)':'transparent'};"
-          onclick="window.toggleDayAbt(this,'${dkey}','${a.k}')" data-k="${a.k}">${a.icon} ${a.l}</div>`).join('')}
-      </div>
-    </div>`;
+          onclick="window.toggleDayAbt(this,'${dkey}','${a.k}')" data-k="${a.k}">${a.icon} ${a.l}<\/div>`).join('')}
+      <\/div>
+    <\/div>`;
   }
 
   html += `<div class="modal-actions">
     <button class="btn btn-out" onclick="window.closeModal('kw-detail')">Schliessen</button>
     <button class="btn btn-gold" onclick="window.saveKWDetail(${kw},${year})">✓ Speichern</button>
-  </div>`;
+  <\/div>`;
 
   document.getElementById('kw-detail-body').innerHTML = html;
   openModal('kw-detail');
@@ -2475,16 +2475,16 @@ function exportJahresplan(){
     .empty{color:#bbb;}.pill{display:inline-block;padding:1px 4px;border-radius:2px;margin:1px;font-size:7px;background:#e8e0d0;}
     .cur{background:#fff8e8;}
     @media print{@page{margin:8mm;size:A4;}}
-  </style></head><body>
-  <h1>📅 Einsatzplan · ${l.vorname} ${l.nachname}</h1>
-  <div style="font-size:8px;color:#666;margin-bottom:5px;">${l.lj}. Lehrjahr · Start: ${l.start} · QV: ${l.qvDatum||''} · Exportiert: ${new Date().toLocaleDateString('de-CH')}</div>`;
+  <\/style><\/head><body>
+  <h1>📅 Einsatzplan · ${l.vorname} ${l.nachname}<\/h1>
+  <div style="font-size:8px;color:#666;margin-bottom:5px;">${l.lj}. Lehrjahr · Start: ${l.start} · QV: ${l.qvDatum||''} · Exportiert: ${new Date().toLocaleDateString('de-CH')}<\/div>`;
 
   const today=new Date().toISOString().slice(0,10);
   for(let lj=1;lj<=3;lj++){
     const ljY=startY+(lj-1);
     const weeks=getWeeksForLJEx(lj);
-    printHtml+=`<h2>${lj}. Lehrjahr · ${ljY}/${ljY+1}</h2>
-    <table><thead><tr><th>KW</th><th>Zeitraum</th><th>Einsatzbereich</th></tr></thead><tbody>`;
+    printHtml+=`<h2>${lj}. Lehrjahr · ${ljY}/${ljY+1}<\/h2>
+    <table><thead><tr><th>KW<\/th><th>Zeitraum<\/th><th>Einsatzbereich<\/th><\/tr><\/thead><tbody>`;
     let i=0;
     while(i<weeks.length){
       const w=weeks[i];
@@ -2501,14 +2501,14 @@ function exportJahresplan(){
       const wEnd=weeks[Math.min(i+span-1,weeks.length-1)];
       const kwLabel=span>1?`KW ${w.kw}–${wEnd.kw}`:`KW ${w.kw}`;
       const dateStr=w.mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'})+'–'+wEnd.fri.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'});
-      const pills=[...abts].map(k=>{const a=ABTS.find(x=>x.k===k);return a?`<span class="pill">${a.icon} ${a.l}</span>`:''}).join('');
+      const pills=[...abts].map(k=>{const a=ABTS.find(x=>x.k===k);return a?`<span class="pill">${a.icon} ${a.l}<\/span>`:''}).join('');
       const isCur=w.dkeys.some(d=>d===today);
-      printHtml+=`<tr${isCur?' class="cur"':''}><td><b>${kwLabel}</b></td><td>${dateStr}</td><td>${pills||'<span class="empty">—</span>'}</td></tr>`;
+      printHtml+=`<tr${isCur?' class="cur"':''}><td><b>${kwLabel}<\/b><\/td><td>${dateStr}<\/td><td>${pills||'<span class="empty">—<\/span>'}<\/td><\/tr>`;
       i+=span;
     }
-    printHtml+=`</tbody></table>`;
+    printHtml+=`<\/tbody><\/table>`;
   }
-  printHtml+=`</body></html>`;
+  printHtml+=`<\/body><\/html>`;
   const w=window.open('','_blank','width=900,height=700');
   w.document.write(printHtml);w.document.close();
   setTimeout(()=>w.print(),600);
