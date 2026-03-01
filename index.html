@@ -2564,6 +2564,8 @@ function toggleTheme(){
   applyTheme(cur==='light'?'dark':'light');
 }
 
+// saveYearEdit is now handled by openKWDetail/saveKWDetail
+function saveYearEdit(){if(yearEditKW)saveKWDetail(yearEditKW,yearEditYear);}
 Object.assign(window,{
   login,register,logout,showTab,selectL,openModal,closeModal,
   setBpSem,toggleLL,toggleAccordion,toggleLZ,
@@ -2577,7 +2579,7 @@ Object.assign(window,{
   addLehrling,deleteLehrling,openEditLehrling,saveEditLehrling,saveBenutzer,deleteBenutzer,
   editBenutzerRow,saveBenutzerEdit,approvePending,rejectPending,renderBenutzer,
   exportBackup,importBackup,saveQVDatum,saveLehrlingQV,renderDB,
-  openYearEdit,toggleYeAbt,saveYearEdit,openYearBulk,saveYearBulk,exportJahresplan,
+  openYearEdit,toggleYeAbt,openYearBulk,saveYearBulk,exportJahresplan,
   openKWDetail,saveKWDetail,toggleDayAbt,
   toggleTheme,applyTheme,
   setBBSem,
