@@ -338,6 +338,59 @@ const BB_KRITERIEN = {
 const ALL_BB_ITEMS = Object.values(BB_KRITERIEN).flatMap(d=>d.items);
 const ABCD_LABEL = {A:"A – Anforderungen übertroffen",B:"B – Anforderungen erfüllt",C:"C – knapp erfüllt, Fördermassnahmen nötig",D:"D – nicht erfüllt, besondere Massnahmen nötig"};
 
+// ══════════════════════════════════════════════════════════════
+// LERNBERICHT THEMEN — aus der offiziellen Themenübersicht
+// ══════════════════════════════════════════════════════════════
+const LB_THEMEN = {
+  "S1 (Hauswirtschaft – Küche – Restauration)": [
+    "Meine ersten Wochen im neuen Team",
+    "Ich stelle eine beeindruckende Person aus dem Betrieb vor",
+    "Begegnung mit Menschen aus anderen Kulturen",
+    "Wow-Effekt im Hotelzimmer",
+    "Mit dem Auge für Details durch den Betrieb",
+    "Begegnung mit dem Gast im Bereich Hauswirtschaft"
+  ],
+  "S2 (Hauswirtschaft – Küche – Restauration)": [
+    "Die Küche unseres Kantons – Wie haben wir kürzlich einen Gast aus der Küche heraus beeindruckt/überrascht?",
+    "Buffetgerichte für eine bestimmte Kostform (vegan, vegetarisch, glutenfrei, laktosefrei usw.)",
+    "Buffetgerichte für eine bestimmte internationale Gästegruppe",
+    "Gäste begeistern mit Geschichten über Wein",
+    "Unsere Hausspezialität empfehlen",
+    "Darf es ein bisschen mehr sein?"
+  ],
+  "S3 (Front Office – Empfang)": [
+    "Mein Einfluss auf die Umwelt in den verschiedenen Hotelabteilungen",
+    "Tue Gutes und sprich darüber",
+    "Food-Waste",
+    "Situation, in der es mir gelungen ist, den Gast zu verblüffen/überraschen",
+    "Cross- und Upselling in der Gästebetreuung",
+    "So bleibe ich dem Gast positiv in Erinnerung",
+    "Der kleine aber feine Unterschied zwischen «sehr gut» und «wow!»"
+  ],
+  "S4 (Front Office – Empfang)": [
+    "Reklamationsgespräch",
+    "Wie ich ein Telefongespräch freundlich, effizient, zielgerichtet zu einem guten Abschluss führe",
+    "Kommunikation mit unterschiedlichen Gästetypen",
+    "Bedürfnisse der Gäste in Erfahrung bringen",
+    "Mitarbeitende für den Betrieb begeistern",
+    "Reklamation als Chance",
+    "Ich bin Botschafter/in für mein Hotel"
+  ],
+  "S5–S6 (Front Office / Back Office)": [
+    "Mein Event",
+    "Als Gastgeberin/Gastgeber",
+    "Wiedersehen macht Freude",
+    "Ein Hotel mit Geschichten",
+    "Mein Betrieb macht von sich reden",
+    "Herz- und Schmerzmomente meiner Ausbildung",
+    "An Herausforderungen wachsen",
+    "Mitarbeitende kommen, Mitarbeitende gehen",
+    "Schwierige Situationen in positive Erfahrungen umwandeln",
+    "Ein Blick in die Zukunft",
+    "Mein Blick zurück"
+  ]
+};
+
 const ABTEILUNGEN = [
   {id:"kueche",        label:"Küche",          icon:"🍳"},
   {id:"service",       label:"Service/F&B",    icon:"🍽️"},
@@ -363,6 +416,8 @@ const QV_SZENARIEN_DEFAULT = [
 let user = null, userProfile = null; // userProfile = {role:'admin'|'abt', abteilung:'kueche'|...}
 let currentLid = null;
 let bpSemFilter = 0;
+let bpOnlyOpen = false;
+let bpAllExpanded = false;
 let currentBerichtId = null;
 let epView = 'year';
 let bbCurrentSem = 1; // Aktives Semester im Bildungsbericht // 'year'|'month'|'week'|'day'
@@ -388,35 +443,44 @@ const add = async(p,d)=>{const r=await addDoc(collection(db,p),{...d,_ts:serverT
 const del = async p=>deleteDoc(doc(db,p));
 const upd = async(p,d)=>updateDoc(doc(db,p),d);
 
+// ── Geteilte Daten: Lehrlinge, LZ-Status, Einsatzplan, Termine, Szenarien
+// werden unter dem Admin-Account gespeichert und sind für alle User sichtbar.
+// Bewertungen (Bildungsbericht): jeder User schreibt in seinen eigenen Pfad.
+// sharedPath() gibt den Basispfad des Admin-Accounts zurück.
+function sharedPath(){
+  // Admin = eigener uid; Abteilungs-User = adminUid des verknüpften Admins
+  return 'shared/'+(userProfile?.adminUid||uid());
+}
+// Bewertungs-Pfad: pro User eigener Pfad (Bildungsbericht-Zugriff beschränkt)
+function bewPath(){
+  // Admin sieht alle, Abteilungs-User nur seine eigene Abteilung
+  // Abt-Submissions liegen im sharedPath, aber werden dort nach Abt gefiltert
+  return sharedPath()+'/bewertungen';
+}
+
 async function loadAll() {
+  const sp = sharedPath();
   const [l,b,lz,bew,ep,t,ein,sz,ben] = await Promise.all([
-    col('users/'+uid()+'/lehrlinge'),col('users/'+uid()+'/lernberichte'),
-    rj('users/'+uid()+'/lzStatus/data'),rj('users/'+uid()+'/bewertungen/data'),
-    rj('users/'+uid()+'/einsatzplan/data'),col('users/'+uid()+'/termine'),
+    col(sp+'/lehrlinge'),
+    col(sp+'/lernberichte'),
+    rj(sp+'/lzStatus/data'),
+    rj(sp+'/bewertungen/data'),
+    rj(sp+'/einsatzplan/data'),
+    col(sp+'/termine'),
     rj('users/'+uid()+'/einstellungen/data'),
-    col('users/'+uid()+'/szenarien'),
+    col(sp+'/szenarien'),
     col('users/'+uid()+'/benutzer')
   ]);
   S.lehrlinge=l||[];S.lernberichte=b||[];S.lzStatus=lz||{};
   S.bewertungen=bew||{};S.einsatzplan=ep||{};S.termine=t||[];
   S.einstellungen=ein||{apiKey:'',qvDatum:'2026-07-01'};
   S.hiddenDefaultSzenarien=S.einstellungen.hiddenDefaultSzenarien||[];
-  // Lade gespeicherte Vorlagen und merge mit Szenarien
-  try{
-    const vorlagen=await col('users/'+uid()+'/szenarien_vorlagen');
-    if(vorlagen&&vorlagen.length){
-      const existingIds=new Set(S.szenarien.map(s=>s.id));
-      vorlagen.forEach(v=>{if(!existingIds.has(v.id))S.szenarien.push(v);});
-    }
-  }catch(e){}
   S.szenarien=sz||[];S.benutzer=ben||[];
-  S.lehrlinge.sort((a,b)=>a.lj-b.lj||(a.nachname||'').localeCompare(b.nachname||''));
   S.lehrlinge.sort((a,b)=>(a.lj||1)-(b.lj||1)||(a.nachname||'').localeCompare(b.nachname||''));
   if(!currentLid&&S.lehrlinge.length)currentLid=S.lehrlinge[0].id;
   // Lade Pending-Benutzer (nur Admin)
   if(userProfile?.role==='admin'){
     try{
-      // getDocs auf emailRoles Collection - filtere pending
       const pendSnap=await getDocs(collection(db,'emailRoles'));
       S.pendingUsers=[];
       pendSnap.forEach(d=>{
@@ -427,23 +491,13 @@ async function loadAll() {
   }
 }
 
-// Nicht-Admin liest Daten vom Admin-Account
+// Nicht-Admin: sharedPath() übernimmt das korrekte Routing automatisch
 async function loadAllAsAbt(adminUid){
   if(!adminUid)return;
-  const [l,b,lz,bew,ep,t] = await Promise.all([
-    col('users/'+adminUid+'/lehrlinge'),
-    col('users/'+adminUid+'/lernberichte'),
-    rj('users/'+adminUid+'/lzStatus/data'),
-    rj('users/'+adminUid+'/bewertungen/data'),
-    rj('users/'+adminUid+'/einsatzplan/data'),
-    col('users/'+adminUid+'/termine')
-  ]);
-  // Schreibrechte bleiben beim Admin, wir lesen nur
   S._adminUid=adminUid;
-  S.lehrlinge=l||[];S.lernberichte=b||[];S.lzStatus=lz||{};
-  S.bewertungen=bew||{};S.einsatzplan=ep||{};S.termine=t||[];
-  S.lehrlinge.sort((a,b)=>(a.lj||1)-(b.lj||1)||(a.nachname||'').localeCompare(b.nachname||''));
-  if(!currentLid&&S.lehrlinge.length)currentLid=S.lehrlinge[0].id;
+  // Daten wurden bereits via sharedPath() geladen (da adminUid im userProfile gesetzt ist)
+  // Reload mit korrektem Pfad
+  await loadAll();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -512,11 +566,8 @@ onAuthStateChanged(auth,async u=>{
     renderAll();
     const isAdmin=userProfile?.role==='admin';
     document.getElementById('tab-benutzer').style.display=isAdmin?'':'none';
-    // Nicht-Admin: Daten vom Admin laden
-    if(!isAdmin && userProfile?.adminUid){
-      await loadAllAsAbt(userProfile.adminUid);
-      renderAll();
-    }
+    // Nicht-Admin: Daten via sharedPath() werden schon in loadAll geladen
+    // (sharedPath() nutzt automatisch adminUid wenn vorhanden)
   }else{
     document.getElementById('auth-screen').style.display='flex';
     document.getElementById('app').style.display='none';
@@ -675,7 +726,8 @@ function renderBildungsplan(){
   BP.forEach(hkb=>{
     // Welche HKs haben LZs in diesem Semester?
     const filteredHKs=hkb.kompetenzen.map(hk=>{
-      const filteredLZ=bpSemFilter===0?hk.lz:hk.lz.filter(l2=>LZ_SEM[l2.k]&&LZ_SEM[l2.k].includes(bpSemFilter));
+      let filteredLZ=bpSemFilter===0?hk.lz:hk.lz.filter(l2=>LZ_SEM[l2.k]&&LZ_SEM[l2.k].includes(bpSemFilter));
+      if(bpOnlyOpen) filteredLZ=filteredLZ.filter(l2=>!lz[l2.k]);
       return{...hk,lzFiltered:filteredLZ};
     }).filter(hk=>hk.lzFiltered.length>0);
     if(!filteredHKs.length)return;
@@ -720,6 +772,32 @@ function renderBildungsplan(){
   document.getElementById('bp-hkb').innerHTML=html||'<div class="dim" style="padding:20px;text-align:center;">Keine Leistungsziele für dieses Semester.</div>';
 }
 function setBpSem(n){bpSemFilter=n;renderBildungsplan();}
+function toggleOnlyOpen(){
+  bpOnlyOpen=!bpOnlyOpen;
+  const btn=document.getElementById('bp-only-open-btn');
+  if(btn){
+    btn.textContent=bpOnlyOpen?'✓ Nur offene LZ':'○ Nur offene LZ';
+    btn.style.borderColor=bpOnlyOpen?'var(--gold)':'';
+    btn.style.color=bpOnlyOpen?'var(--gold)':'';
+  }
+  renderBildungsplan();
+}
+function expandAllHKB(){
+  bpAllExpanded=true;
+  document.querySelectorAll('.hkb-hd').forEach(h=>{
+    h.classList.add('open');
+    if(h.nextElementSibling)h.nextElementSibling.classList.add('open');
+  });
+  document.querySelectorAll('.lz-list').forEach(l=>l.classList.add('open'));
+}
+function collapseAllHKB(){
+  bpAllExpanded=false;
+  document.querySelectorAll('.hkb-hd').forEach(h=>{
+    h.classList.remove('open');
+    if(h.nextElementSibling)h.nextElementSibling.classList.remove('open');
+  });
+  document.querySelectorAll('.lz-list').forEach(l=>l.classList.remove('open'));
+}
 function toggleLL(id){document.getElementById(id)?.classList.toggle('open');}
 function toggleAccordion(el){
   if(!el||!el.nextElementSibling)return;
@@ -759,7 +837,89 @@ async function toggleLZ(lid,key,rowEl){
       if(btn)btn.innerHTML=`S${s} ${sp.complete?'✓':sp.pct+'%'}`;
     }
   }
-  await wj(`users/${uid()}/lzStatus/data`,S.lzStatus);
+  await wj(sharedPath()+'/lzStatus/data',S.lzStatus);
+}
+
+// ══════════════════════════════════════════════════════════════
+// LERNBERICHT THEMEN PICKER
+// ══════════════════════════════════════════════════════════════
+let nbThemaMode = 'list'; // 'list' | 'manual'
+let nbSelectedThema = '';
+
+function setThemaMode(mode){
+  nbThemaMode = mode;
+  document.getElementById('nb-thema-list-section').style.display = mode==='list' ? '' : 'none';
+  document.getElementById('nb-thema-manual-section').style.display = mode==='manual' ? '' : 'none';
+  const btnList = document.getElementById('nb-thema-mode-list');
+  const btnManual = document.getElementById('nb-thema-mode-manual');
+  if(btnList){btnList.style.borderColor=mode==='list'?'var(--gold)':'';btnList.style.color=mode==='list'?'var(--gold)':'';}
+  if(btnManual){btnManual.style.borderColor=mode==='manual'?'var(--gold)':'';btnManual.style.color=mode==='manual'?'var(--gold)':'';}
+  if(mode==='list') updateThemenList();
+}
+
+function updateThemenList(){
+  const sem = parseInt(document.getElementById('nb-sem')?.value||1);
+  // Semester → Themengruppe(n) ermitteln
+  const container = document.getElementById('nb-themen-groups');
+  if(!container) return;
+  
+  // Welche Gruppen passen zum Semester?
+  const relevantGroups = Object.entries(LB_THEMEN).filter(([group]) => {
+    if(sem<=2) return group.startsWith('S1')||group.startsWith('S2');
+    if(sem<=4) return group.startsWith('S3')||group.startsWith('S4');
+    return group.startsWith('S5');
+  });
+  const allGroups = Object.entries(LB_THEMEN);
+  
+  let html = '';
+  // Erst relevante Gruppen, dann trennlinie, dann alle
+  const shown = new Set();
+  relevantGroups.forEach(([group, themes]) => {
+    shown.add(group);
+    html += `<div style="font-size:10px;color:var(--gold);font-weight:600;margin:6px 0 3px;">${group}</div>`;
+    themes.forEach(t => {
+      const sel = nbSelectedThema===t;
+      html += `<div onclick="window.selectThema('${t.replace(/'/g,"\'")}',this)" 
+        style="font-size:11px;padding:5px 8px;border-radius:5px;cursor:pointer;margin-bottom:2px;
+        background:${sel?'rgba(201,168,76,.2)':'transparent'};
+        border:1px solid ${sel?'var(--gold)':'transparent'};
+        color:${sel?'var(--gold)':'var(--cream)'};"
+        data-thema="${t.replace(/"/g,'&quot;')}">${t}</div>`;
+    });
+  });
+  
+  const otherGroups = allGroups.filter(([g])=>!shown.has(g));
+  if(otherGroups.length){
+    html += `<div style="font-size:10px;color:var(--dim);margin:8px 0 3px;border-top:1px solid var(--border);padding-top:6px;">Weitere Semester:</div>`;
+    otherGroups.forEach(([group, themes]) => {
+      html += `<details style="margin-bottom:4px;"><summary style="font-size:10px;color:var(--dim);cursor:pointer;padding:3px;">${group}</summary>`;
+      themes.forEach(t => {
+        const sel = nbSelectedThema===t;
+        html += `<div onclick="window.selectThema('${t.replace(/'/g,"\'")}',this)"
+          style="font-size:11px;padding:5px 8px;border-radius:5px;cursor:pointer;margin:2px 0;
+          background:${sel?'rgba(201,168,76,.2)':'transparent'};
+          border:1px solid ${sel?'var(--gold)':'transparent'};
+          color:${sel?'var(--gold)':'var(--cream)'};"
+          data-thema="${t.replace(/"/g,'&quot;')}">${t}</div>`;
+      });
+      html += `</details>`;
+    });
+  }
+  
+  container.innerHTML = html;
+}
+
+function selectThema(thema, el){
+  nbSelectedThema = thema;
+  // Visual update
+  document.querySelectorAll('#nb-themen-groups [data-thema]').forEach(d=>{
+    const isThis = d.dataset.thema===thema;
+    d.style.background = isThis?'rgba(201,168,76,.2)':'transparent';
+    d.style.borderColor = isThis?'var(--gold)':'transparent';
+    d.style.color = isThis?'var(--gold)':'var(--cream)';
+  });
+  const sel = document.getElementById('nb-thema-selected');
+  if(sel) sel.textContent = thema ? '✓ Gewählt: ' + thema : '';
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -791,12 +951,16 @@ function renderLernberichte(){
   document.getElementById('b-grid').innerHTML=html;
 }
 function openNewBericht(sem){
-  ['nb-thema','nb-pos','nb-verb'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['nb-pos','nb-verb'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const themaEl=document.getElementById('nb-thema');if(themaEl)themaEl.value='';
   document.getElementById('nb-edit-id').value='';
   document.getElementById('nb-modal-title').textContent='Neuer Lernbericht';
   if(sem)document.getElementById('nb-sem').value=sem;
   if(currentLid)document.getElementById('nb-lid').value=currentLid;
   document.getElementById('nb-status').value='eingereicht';
+  nbSelectedThema='';
+  const selEl=document.getElementById('nb-thema-selected');if(selEl)selEl.textContent='';
+  setThemaMode('list');
   openModal('bericht');
 }
 function editBericht(bid){
@@ -806,28 +970,41 @@ function editBericht(bid){
   document.getElementById('nb-lid').value=b.lid;
   document.getElementById('nb-sem').value=b.sem;
   document.getElementById('nb-hk').value=b.hk||'';
-  document.getElementById('nb-thema').value=b.thema||'';
   document.getElementById('nb-status').value=b.status;
   document.getElementById('nb-pos').value=b.pos||'';
   document.getElementById('nb-verb').value=b.verb||'';
+  // Thema setzen: in Liste suchen oder manuell
+  nbSelectedThema='';
+  const allThemes=Object.values(LB_THEMEN).flat();
+  if(b.thema&&allThemes.includes(b.thema)){
+    nbSelectedThema=b.thema;
+    setThemaMode('list');
+    const selEl=document.getElementById('nb-thema-selected');
+    if(selEl)selEl.textContent='✓ Gewählt: '+b.thema;
+  } else {
+    setThemaMode('manual');
+    const themaEl=document.getElementById('nb-thema');
+    if(themaEl)themaEl.value=b.thema||'';
+  }
   openModal('bericht');
 }
 async function saveBericht(){
   const eid=document.getElementById('nb-edit-id').value;
+  const thema=nbThemaMode==='list'?nbSelectedThema:(document.getElementById('nb-thema')?.value.trim()||'');
   const data={lid:document.getElementById('nb-lid').value,sem:parseInt(document.getElementById('nb-sem').value),
-    thema:document.getElementById('nb-thema').value.trim(),hk:document.getElementById('nb-hk').value,
+    thema,hk:document.getElementById('nb-hk').value,
     status:document.getElementById('nb-status').value,pos:document.getElementById('nb-pos').value,
     verb:document.getElementById('nb-verb').value};
   if(!data.thema){toast('Bitte Thema eingeben','red');return;}
   showLoading(true);
   if(eid){
-    await upd(`users/${uid()}/lernberichte/${eid}`,data);
+    await upd(sharedPath()+'/lernberichte/'+eid,data);
     const idx=S.lernberichte.findIndex(x=>x.id===eid);
     if(idx>-1)S.lernberichte[idx]={...S.lernberichte[idx],...data};
     toast('✓ Bericht aktualisiert');
   }else{
     data.datum=new Date().toISOString().slice(0,10);data.attachments=[];
-    const id=await add(`users/${uid()}/lernberichte`,data);
+    const id=await add(sharedPath()+'/lernberichte',data);
     S.lernberichte.push({id,...data});toast('✓ Bericht gespeichert');
   }
   showLoading(false);closeModal('bericht');renderLernberichte();
@@ -874,13 +1051,13 @@ function showBericht(bid){
 }
 async function visiereBericht(bid){
   const pos=document.getElementById('fb-pos')?.value||'',verb=document.getElementById('fb-verb')?.value||'';
-  await upd(`users/${uid()}/lernberichte/${bid}`,{status:'visiert',pos,verb});
+  await upd(sharedPath()+'/lernberichte/'+bid,{status:'visiert',pos,verb});
   const b=S.lernberichte.find(x=>x.id===bid);if(b){b.status='visiert';b.pos=pos;b.verb=verb;}
   toast('✓ Bericht visiert');renderLernberichte();showBericht(bid);
 }
 async function deleteBericht(bid){
   if(!confirm('Bericht löschen?'))return;
-  await del(`users/${uid()}/lernberichte/${bid}`);
+  await del(sharedPath()+'/lernberichte/'+bid);
   S.lernberichte=S.lernberichte.filter(x=>x.id!==bid);
   document.getElementById('b-detail').style.display='none';
   currentBerichtId=null;toast('Bericht gelöscht');renderLernberichte();
@@ -892,11 +1069,11 @@ async function doUpload(files,bid){
   const b=S.lernberichte.find(x=>x.id===bid);if(!b)return;
   if(!b.attachments)b.attachments=[];
   for(const file of files){
-    const sRef=ref(stor,`users/${uid()}/${bid}/${Date.now()}_${file.name}`);
+    const sRef=ref(stor,sharedPath()+'/'+bid+'/'+Date.now()+'_'+file.name);
     await uploadBytes(sRef,file);const url=await getDownloadURL(sRef);
     b.attachments.push({name:file.name,url,size:file.size,path:sRef.fullPath});
   }
-  await upd(`users/${uid()}/lernberichte/${bid}`,{attachments:b.attachments});
+  await upd(sharedPath()+'/lernberichte/'+bid,{attachments:b.attachments});
   showLoading(false);toast(`✓ ${files.length} Datei(en) hochgeladen`);showBericht(bid);
 }
 async function delAtt(bid,name,encodedPath){
@@ -905,7 +1082,7 @@ async function delAtt(bid,name,encodedPath){
   const path=decodeURIComponent(encodedPath);
   if(path){try{await deleteObject(ref(stor,path));}catch(e){}}
   b.attachments=(b.attachments||[]).filter(a=>a.name!==name);
-  await upd(`users/${uid()}/lernberichte/${bid}`,{attachments:b.attachments});
+  await upd(sharedPath()+'/lernberichte/'+bid,{attachments:b.attachments});
   toast('Anhang gelöscht');showBericht(bid);
 }
 
@@ -1173,14 +1350,14 @@ async function saveAbtBew(abtId,semKey){
         bewertungen:S.bewertungen[currentLid]?.[sk]?.['abt_'+abtId]||{},
         timestamp:new Date().toISOString(), authorUid:uid()
       };
-      await wj('users/'+S._adminUid+'/abt_submissions/'+currentLid+'_'+sk+'_'+abtId, submission);
+      await wj(sharedPath()+'/abt_submissions/'+currentLid+'_'+sk+'_'+abtId,submission);
       // Auch lokal merken
       if(!S.bewertungen[currentLid])S.bewertungen[currentLid]={};
       if(!S.bewertungen[currentLid][sk])S.bewertungen[currentLid][sk]={};
       S.bewertungen[currentLid][sk]['abt_'+abtId]=submission.bewertungen;
       toast('✓ Bewertung übermittelt');
     } else {
-      await wj('users/'+uid()+'/bewertungen/data',S.bewertungen);
+      await wj(sharedPath()+'/bewertungen/data',S.bewertungen);
       toast('✓ Bewertung gespeichert');
     }
   }catch(e){toast('Fehler: '+e.message,'red');}
@@ -1213,7 +1390,7 @@ async function saveFinalBew(){
     const el=document.getElementById('fin-'+k);if(el)f[k]=el.value;
   });
   showLoading(true);
-  await wj('users/'+uid()+'/bewertungen/data',S.bewertungen);
+  await wj(sharedPath()+'/bewertungen/data',S.bewertungen);
   showLoading(false);
   toast('✓ Bildungsbericht S'+bbCurrentSem+' gespeichert');
 }
@@ -1293,7 +1470,7 @@ async function saveAsVorlage(szId){
   // Speichert ein custom Szenario als globale Vorlage (unter admin-uid für alle Lehrlinge zugänglich)
   const sz=S.szenarien.find(s=>s.id===szId);if(!sz)return;
   const vorlage={...sz, isVorlage:true, _ts:Date.now()};
-  await wj('users/'+uid()+'/szenarien_vorlagen/'+szId, vorlage);
+  await wj(sharedPath()+'/szenarien_vorlagen/'+szId,vorlage);
   toast('✓ Als Vorlage gespeichert — verfügbar für alle Lehrlinge');
 }
 function renderQV(){
@@ -1392,13 +1569,13 @@ async function saveAufgabe(){
   if(customSz){
     if(!customSz.aufgaben)customSz.aufgaben=[];
     customSz.aufgaben.push(text);
-    await upd(`users/${uid()}/szenarien/${customSz.id}`,{aufgaben:customSz.aufgaben});
+    await upd(sharedPath()+'/szenarien/'+customSz.id,{aufgaben:customSz.aufgaben});
   } else if(defaultSz){
     // Clone als custom
     const newSz={...defaultSz,id:'custom_'+Date.now(),aufgaben:[...defaultSz.aufgaben,text],_custom:true};
     // Ersetze Default-Referenzen mit dem Original + neue Aufgabe
     // Einfacher: direkt als neues Szenario mit modifiziertem Inhalt
-    const id=await add(`users/${uid()}/szenarien`,{...newSz});
+    const id=await add(sharedPath()+'/szenarien',{...newSz});
     S.szenarien.push({id,...newSz});
     toast('Aufgabe zu neuem Custom-Szenario hinzugefügt');
     closeModal('aufgabe');renderQVSzenarien();return;
@@ -1414,14 +1591,14 @@ async function saveSzenario(){
   const aufgaben=aufgabenText.split('\n').map(s=>s.trim()).filter(s=>s.length>0);
   const data={id:'cust_'+Date.now(),titel,beschreibung:beschr,aufgaben,hkbs:[]};
   showLoading(true);
-  const id=await add(`users/${uid()}/szenarien`,data);
+  const id=await add(sharedPath()+'/szenarien',data);
   S.szenarien.push({id,...data});
   showLoading(false);closeModal('szenario');toast('✓ Szenario erstellt');renderQVSzenarien();
 }
 async function deleteSzenario(szId){
   if(!confirm('Szenario löschen?'))return;
   const sz=S.szenarien.find(s=>s.id===szId);
-  if(sz){await del(`users/${uid()}/szenarien/${sz.id}`);}
+  if(sz){await del(sharedPath()+'/szenarien/'+sz.id);}
   S.szenarien=S.szenarien.filter(s=>s.id!==szId);
   toast('Szenario gelöscht');renderQVSzenarien();
 }
@@ -1467,29 +1644,29 @@ function setSlot(lid,date,k){if(!S.einsatzplan[lid])S.einsatzplan[lid]={};S.eins
 
 let epYearOff=0;
 function changeEp(dir){
-  if(epView==='year')epYearOff+=dir;
-  else if(epView==='month')epMonthOff+=dir;
-  else if(epView==='week')epWeekOff+=dir;
-  else epDayOff+=dir;
+  epYearOff+=dir;
   renderEinsatz();
 }
 function resetEp(){
-  if(epView==='year')epYearOff=0;
-  else if(epView==='month')epMonthOff=0;
-  else if(epView==='week')epWeekOff=0;
-  else epDayOff=0;
+  epYearOff=0;
   renderEinsatz();
 }
-function setEpView(v){epView=v;document.querySelectorAll('.ep-view-btn').forEach(b=>b.classList.remove('active'));document.getElementById('epv-'+v)?.classList.add('active');renderEinsatz();}
+function setEpView(v){epView=v;renderEinsatz();}
 
 function renderEinsatz(){
-  document.querySelectorAll('.ep-view-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('epv-'+epView)?.classList.add('active');
-  if(epView==='year')renderEinsatzYear();
-  else if(epView==='month')renderEinsatzMonth();
-  else if(epView==='week')renderEinsatzWeek();
-  else renderEinsatzDay();
+  renderEpLehrlingSelector();
+  renderEinsatzYear();
   renderEpPalette();
+}
+function renderEpLehrlingSelector(){
+  const container=document.getElementById('ep-lb');
+  if(!container)return;
+  container.innerHTML=S.lehrlinge.map(l=>`
+    <div class="lp ${l.id===currentLid?'active':''}" onclick="window.selectL('${l.id}')">
+      <div class="lav" style="background:${l.color||'#555'}">${l.initials}</div>
+      <div><div style="font-size:12px;font-weight:500;">${l.vorname} ${l.nachname}</div>
+      <div class="dim" style="font-size:10px;">${l.lj}. Lehrjahr</div></div>
+    </div>`).join('');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1737,35 +1914,67 @@ function openKWDetail(kw, year){
   const jan4 = new Date(year,0,4);
   const mon = new Date(jan4);
   mon.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(kw-1)*7);
+  const fri = new Date(mon); fri.setDate(mon.getDate()+4);
 
-  const days = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
-  let html = `<div class="modal-t">KW ${kw} · ${mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit',year:'numeric'})}<\/div>`;
-  html += `<div class="card-s" style="margin-bottom:12px;">Optionale Tages-Feindefinition · Klicke auf eine Abteilung pro Tag<\/div>`;
-
-  for(let i=0;i<7;i++){
-    const d = new Date(mon); d.setDate(mon.getDate()+i);
-    const dkey = d.toISOString().slice(0,10);
-    const ep = S.einsatzplan[lid]||{};
-    const current = ep[dkey+'_multi']||( ep[dkey]?[ep[dkey]]:[] );
-    html += `<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border);">
-      <div style="font-size:11px;font-weight:600;margin-bottom:5px;color:${i>=5?'var(--dim)':'var(--cream)'};">
-        ${days[i]} ${d.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'})}${i>=5?' (WE)':''}
-      <\/div>
-      <div style="display:flex;flex-wrap:wrap;gap:4px;" id="day-sel-${dkey}">
-        ${ABTS.map(a=>`<div class="ep-mini-btn ${a.cls} ${current.includes(a.k)?'ye-sel':''}" 
-          style="cursor:pointer;border:2px solid ${current.includes(a.k)?'var(--gold)':'transparent'};"
-          onclick="window.toggleDayAbt(this,'${dkey}','${a.k}')" data-k="${a.k}">${a.icon} ${a.l}<\/div>`).join('')}
-      <\/div>
-    <\/div>`;
+  // Bestehende Wochenabt ermitteln (primäre)
+  const ep = S.einsatzplan[lid]||{};
+  const weekAbts = new Set();
+  for(let i=0;i<5;i++){
+    const d=new Date(mon);d.setDate(mon.getDate()+i);
+    const dk=d.toISOString().slice(0,10);
+    const multi=ep[dk+'_multi']||(ep[dk]?[ep[dk]]:[]);
+    multi.forEach(k=>weekAbts.add(k));
   }
 
-  html += `<div class="modal-actions">
-    <button class="btn btn-out" onclick="window.closeModal('kw-detail')">Schliessen</button>
+  const dateLabel = mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'})+'–'+fri.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit',year:'numeric'});
+
+  let html = `<div class="modal-t">KW ${kw} · ${dateLabel}<\/div>
+  <div class="card-s" style="margin-bottom:14px;">Abteilung(en) für die ganze Woche wählen. Mehrfachauswahl möglich für geteilte Wochen.<\/div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;" id="kw-abt-grid">
+    ${ABTS.map(a=>{
+      const sel=weekAbts.has(a.k);
+      return \`<div class="ep-mini-btn \${a.cls}" 
+        style="padding:10px 8px;text-align:center;font-size:12px;border:2px solid \${sel?'var(--gold)':'transparent'};border-radius:8px;\${sel?'box-shadow:0 0 0 2px rgba(201,168,76,.3);':''}"
+        onclick="window.toggleKWAbt(this,'${a.k}')" data-k="${a.k}" data-sel="\${sel}">
+        \${a.icon}<br>\${a.l}
+      <\/div>\`;
+    }).join('')}
+  <\/div>
+  <div class="modal-actions">
+    <button class="btn btn-out" onclick="window.closeModal('kw-detail')">Abbrechen</button>
+    <button class="btn btn-sm btn-out" onclick="window.clearKWDetail(${kw},${year})" style="border-color:var(--red);color:var(--red-l);">🗑 Löschen</button>
     <button class="btn btn-gold" onclick="window.saveKWDetail(${kw},${year})">✓ Speichern</button>
   <\/div>`;
 
   document.getElementById('kw-detail-body').innerHTML = html;
   openModal('kw-detail');
+}
+
+function toggleKWAbt(el, k){
+  const sel = el.dataset.sel==='true';
+  el.dataset.sel = (!sel).toString();
+  el.style.borderColor = !sel ? 'var(--gold)' : 'transparent';
+  el.style.boxShadow = !sel ? '0 0 0 2px rgba(201,168,76,.3)' : '';
+}
+
+async function clearKWDetail(kw, year){
+  const lid=currentLid;
+  const jan4=new Date(year,0,4);
+  const mon=new Date(jan4);
+  mon.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(kw-1)*7);
+  if(!S.einsatzplan[lid])S.einsatzplan[lid]={};
+  for(let i=0;i<5;i++){
+    const d=new Date(mon);d.setDate(mon.getDate()+i);
+    const dkey=d.toISOString().slice(0,10);
+    delete S.einsatzplan[lid][dkey];
+    delete S.einsatzplan[lid][dkey+'_multi'];
+  }
+  showLoading(true);
+  await wj(sharedPath()+'/einsatzplan/data',S.einsatzplan);
+  showLoading(false);
+  closeModal('kw-detail');
+  toast('KW '+kw+' geleert');
+  renderEinsatzYear();
 }
 
 function toggleDayAbt(el, dkey, k){
@@ -1781,12 +1990,12 @@ async function saveKWDetail(kw, year){
 
   if(!S.einsatzplan[lid]) S.einsatzplan[lid]={};
 
-  for(let i=0;i<7;i++){
+  // Lese Auswahl aus dem neuen Grid
+  const selected = [...document.querySelectorAll('#kw-abt-grid [data-sel="true"]')].map(el=>el.dataset.k);
+
+  for(let i=0;i<5;i++){
     const d = new Date(mon); d.setDate(mon.getDate()+i);
     const dkey = d.toISOString().slice(0,10);
-    const container = document.getElementById('day-sel-'+dkey);
-    if(!container) continue;
-    const selected = [...container.querySelectorAll('.ye-sel')].map(el=>el.dataset.k);
     if(selected.length===0){
       delete S.einsatzplan[lid][dkey];
       delete S.einsatzplan[lid][dkey+'_multi'];
@@ -1797,7 +2006,7 @@ async function saveKWDetail(kw, year){
     }
   }
   showLoading(true);
-  await wj('users/'+uid()+'/einsatzplan/data', S.einsatzplan);
+  await wj(sharedPath()+'/einsatzplan/data',S.einsatzplan);
   showLoading(false);
   closeModal('kw-detail');
   toast('✓ KW '+kw+' gespeichert');
@@ -1843,7 +2052,7 @@ async function saveYearBulk(){
     }
   }
   showLoading(true);
-  await wj('users/'+uid()+'/einsatzplan/data',S.einsatzplan);
+  await wj(sharedPath()+'/einsatzplan/data',S.einsatzplan);
   showLoading(false);
   closeModal('year-bulk');
   toast(`✓ KW ${von}–${bis} gespeichert`);
@@ -1945,7 +2154,8 @@ function renderEinsatzDay(){
 }
 
 function renderEpPalette(){
-  document.getElementById('ep-palette').innerHTML=`
+  // Palette not used in year-only view
+  const el=document.getElementById('ep-palette');if(el)el.innerHTML=`
     <div class="dim" style="font-size:11px;margin-bottom:5px;">${epView==='month'?'Klicke auf einen Tag zum Planen':'Klicke auf Zelle, dann Abteilung wählen'}:</div>
     <div style="display:flex;flex-wrap:wrap;gap:4px;" id="ep-pal-btns">
       ${ABTS.map(a=>`<div class="ep-mini-btn ${a.cls}" id="pal-${a.k}"
@@ -1969,7 +2179,7 @@ function epMonthClick(lid,date,el){
 }
 async function setMonthSlot(lid,date,abtKey,cellEl){
   setSlot(lid,date,abtKey);
-  await wj(`users/${uid()}/einsatzplan/data`,S.einsatzplan);
+  await wj(sharedPath()+'/einsatzplan/data',S.einsatzplan);
   if(cellEl){
     const abt=ABTS.find(a=>a.k===abtKey)||ABTS[ABTS.length-1];
     cellEl.className=`ep-m-cell ${abt.cls}`;
@@ -1997,7 +2207,7 @@ function epCellClick(lid,date,el){
 }
 async function setWeekSlot(lid,date,abtKey,cellEl){
   setSlot(lid,date,abtKey);
-  await wj(`users/${uid()}/einsatzplan/data`,S.einsatzplan);
+  await wj(sharedPath()+'/einsatzplan/data',S.einsatzplan);
   const abt=ABTS.find(a=>a.k===abtKey)||ABTS[ABTS.length-1];
   if(cellEl){cellEl.className=`ep-cell ${abt.cls}`;cellEl.innerHTML=`${abt.icon} ${abt.l}`;cellEl.classList.remove('selected');}
   epSelectedCell=null;
@@ -2006,7 +2216,7 @@ async function setWeekSlot(lid,date,abtKey,cellEl){
 }
 async function setDaySlot(lid,date,abtKey){
   setSlot(lid,date,abtKey);
-  await wj(`users/${uid()}/einsatzplan/data`,S.einsatzplan);
+  await wj(sharedPath()+'/einsatzplan/data',S.einsatzplan);
   renderEinsatzDay();toast('✓ Eingetragen');
 }
 function palDragStart(e,k){e.dataTransfer.setData('abt',k);}
@@ -2082,18 +2292,18 @@ async function saveTermin(){
     beschreibung:document.getElementById('tm-beschr').value,erledigt:false};
   if(!data.titel||!data.datum){toast('Titel und Datum eingeben','red');return;}
   showLoading(true);
-  if(eid){await upd(`users/${uid()}/termine/${eid}`,data);const idx=S.termine.findIndex(x=>x.id===eid);if(idx>-1)S.termine[idx]={...S.termine[idx],...data};toast('✓ Termin aktualisiert');}
-  else{const id=await add(`users/${uid()}/termine`,data);S.termine.push({id,...data});toast('✓ Termin gespeichert');}
+  if(eid){await upd(sharedPath()+'/termine/'+eid,data);const idx=S.termine.findIndex(x=>x.id===eid);if(idx>-1)S.termine[idx]={...S.termine[idx],...data};toast('✓ Termin aktualisiert');}
+  else{const id=await add(sharedPath()+'/termine',data);S.termine.push({id,...data});toast('✓ Termin gespeichert');}
   showLoading(false);closeModal('termin');renderTermine();
 }
 async function erledigeTermin(tid){
-  await upd(`users/${uid()}/termine/${tid}`,{erledigt:true});
+  await upd(sharedPath()+'/termine/'+tid,{erledigt:true});
   const t=S.termine.find(x=>x.id===tid);if(t)t.erledigt=true;
   toast('✓ Erledigt');renderTermine();
 }
 async function deleteTermin(tid){
   if(!confirm('Termin löschen?'))return;
-  await del(`users/${uid()}/termine/${tid}`);
+  await del(sharedPath()+'/termine/'+tid);
   S.termine=S.termine.filter(x=>x.id!==tid);
   toast('Termin gelöscht');renderTermine();
 }
@@ -2252,10 +2462,10 @@ async function loadMyRole(){
     return false;
   }
   if(snap && snap.role && snap.role!=='pending'){
-    userProfile={role:snap.role,abteilung:snap.abteilung,adminUid:snap.adminUid};
+    userProfile={role:snap.role,abteilung:snap.abteilung,adminUid:snap.adminUid||null};
   } else {
-    // Erster Benutzer = Admin
-    userProfile={role:'admin',abteilung:null};
+    // Erster Benutzer = Admin — kein adminUid nötig, sharedPath() nutzt uid()
+    userProfile={role:'admin',abteilung:null,adminUid:null};
     await wj('emailRoles/'+emailKey,{email:user.email,role:'admin',abteilung:null,uid:user.uid});
   }
   return true;
@@ -2312,7 +2522,7 @@ async function addLehrling(){
     geburtsdatum:geb||null,
     qvDatum:document.getElementById('nl-qv').value||S.einstellungen.qvDatum||'2026-07-01',
     initials:(vn[0]+(nn[0]||'')).toUpperCase(),color};
-  showLoading(true);const id=await add('users/'+uid()+'/lehrlinge',data);
+  showLoading(true);const id=await add(sharedPath()+'/lehrlinge',data);
   S.lehrlinge.push({id,...data});currentLid=id;
   showLoading(false);closeModal('lehrling');toast('✓ Lehrling hinzugefügt');renderAll();fillDropdowns();
 }
@@ -2340,14 +2550,14 @@ async function saveEditLehrling(){
     initials:(document.getElementById('el-vn').value.trim()[0]+(document.getElementById('el-nn').value.trim()[0]||'')).toUpperCase()
   };
   showLoading(true);
-  await upd('users/'+uid()+'/lehrlinge/'+lid,data);
+  await upd(sharedPath()+'/lehrlinge/'+lid,data);
   Object.assign(l,data);
   showLoading(false);closeModal('edit-lehrling');toast('✓ Lehrling aktualisiert');renderAll();
 }
 
 async function deleteLehrling(lid){
   if(!confirm('Lehrling und alle Daten löschen?'))return;
-  showLoading(true);await del(`users/${uid()}/lehrlinge/${lid}`);
+  showLoading(true);await del(sharedPath()+'/lehrlinge/'+lid);
   S.lehrlinge=S.lehrlinge.filter(x=>x.id!==lid);
   if(currentLid===lid)currentLid=S.lehrlinge[0]?.id||null;
   showLoading(false);renderAll();toast('Lehrling gelöscht');
@@ -2598,12 +2808,12 @@ async function importBackup(e){
     const d=JSON.parse(await file.text());
     if(!confirm(`Import: ${d.lehrlinge?.length||0} Lehrlinge, ${d.lernberichte?.length||0} Berichte. Weiter?`))return;
     showLoading(true);
-    if(d.lzStatus)await wj(`users/${uid()}/lzStatus/data`,d.lzStatus);
-    if(d.bewertungen)await wj(`users/${uid()}/bewertungen/data`,d.bewertungen);
-    if(d.einsatzplan)await wj(`users/${uid()}/einsatzplan/data`,d.einsatzplan);
-    if(d.lehrlinge)for(const l of d.lehrlinge)await wj(`users/${uid()}/lehrlinge/${l.id}`,l);
-    if(d.lernberichte)for(const b of d.lernberichte)await wj(`users/${uid()}/lernberichte/${b.id}`,b);
-    if(d.termine)for(const t of d.termine)await wj(`users/${uid()}/termine/${t.id}`,t);
+    if(d.lzStatus)await wj(sharedPath()+'/lzStatus/data',d.lzStatus);
+    if(d.bewertungen)await wj(sharedPath()+'/bewertungen/data',d.bewertungen);
+    if(d.einsatzplan)await wj(sharedPath()+'/einsatzplan/data',d.einsatzplan);
+    if(d.lehrlinge)for(const l of d.lehrlinge)await wj(sharedPath()+'/lehrlinge/'+l.id,l);
+    if(d.lernberichte)for(const b of d.lernberichte)await wj(sharedPath()+'/lernberichte/'+b.id,b);
+    if(d.termine)for(const t of d.termine)await wj(sharedPath()+'/termine/'+t.id,t);
     await loadAll();showLoading(false);renderAll();toast('✓ Import erfolgreich');
   }catch(err){showLoading(false);toast('Import-Fehler: '+err.message,'red');}
 }
@@ -2640,8 +2850,8 @@ function toggleTheme(){
 function saveYearEdit(){if(yearEditKW)saveKWDetail(yearEditKW,yearEditYear);}
 Object.assign(window,{
   login,register,logout,showTab,selectL,openModal,closeModal,
-  setBpSem,toggleLL,toggleAccordion,toggleLZ,
-  openNewBericht,editBericht,saveBericht,showBericht,visiereBericht,deleteBericht,
+  setBpSem,toggleLL,toggleAccordion,toggleLZ,toggleOnlyOpen,expandAllHKB,collapseAllHKB,
+  openNewBericht,editBericht,saveBericht,showBericht,visiereBericht,deleteBericht,setThemaMode,updateThemenList,selectThema,
   uploadAtt,dropAtt,delAtt,
   renderBildungsbericht,setAbtGrade,setAbtComment,saveAbtBew,setFinalGrade,setFinalComment,saveFinalBew,generateBB,
   toggleSzAufgabe,openAddAufgabe,saveAufgabe,saveSzenario,deleteSzenario,
@@ -3042,7 +3252,17 @@ textarea.fi{min-height:60px;resize:vertical;}
     <div class="pbar" style="height:8px;margin-bottom:12px;"><div class="pfill" id="bp-total-bar" style="width:0%;background:var(--gold)"></div></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;" id="bp-sem-btns"></div>
   </div>
-  <div class="card"><div class="card-t">Handlungskompetenzen</div><div class="card-s">HKB aufklappen · LZ einzeln abhaken · [Sx] = Semester-Zuordnung</div><div id="bp-hkb"></div></div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+      <div><div class="card-t">Handlungskompetenzen</div><div class="card-s">HKB aufklappen · LZ einzeln abhaken · [Sx] = Semester-Zuordnung</div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-out btn-sm" id="bp-only-open-btn" onclick="window.toggleOnlyOpen()">○ Nur offene LZ</button>
+        <button class="btn btn-out btn-sm" onclick="window.expandAllHKB()">⊞ Alle ausklappen</button>
+        <button class="btn btn-out btn-sm" onclick="window.collapseAllHKB()">⊟ Alle einklappen</button>
+      </div>
+    </div>
+    <div id="bp-hkb"></div>
+  </div>
 </div>
 
 <!-- LERNBERICHTE -->
@@ -3114,17 +3334,11 @@ textarea.fi{min-height:60px;resize:vertical;}
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
       <div class="card-t" id="ep-label">Einsatzplan</div>
       <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;">
-        <button class="ep-view-btn active" id="epv-year" onclick="window.setEpView('year')">Jahr</button>
-        <button class="ep-view-btn" id="epv-month" onclick="window.setEpView('month')">Monat</button>
-        <button class="ep-view-btn" id="epv-week" onclick="window.setEpView('week')">Woche</button>
-        <button class="ep-view-btn" id="epv-day" onclick="window.setEpView('day')">Tag</button>
-        <div style="width:1px;height:18px;background:var(--border);margin:0 3px;"></div>
-        <button class="btn btn-out btn-sm" onclick="window.changeEp(-1)">←</button>
-        <button class="btn btn-out btn-sm" onclick="window.resetEp()">Heute</button>
-        <button class="btn btn-out btn-sm" onclick="window.changeEp(1)">→</button>
+        <button class="btn btn-out btn-sm" onclick="window.changeEp(-1)">← Vorjahr</button>
+        <button class="btn btn-out btn-sm" onclick="window.resetEp()">Aktuell</button>
+        <button class="btn btn-out btn-sm" onclick="window.changeEp(1)">Nächstes Jahr →</button>
       </div>
     </div>
-    <div class="ep-palette" id="ep-palette"></div>
     <div id="ep-main"></div>
   </div>
 </div>
@@ -3245,18 +3459,32 @@ textarea.fi{min-height:60px;resize:vertical;}
 </div>
 
 <div class="modal-overlay" id="modal-bericht">
-  <div class="modal">
+  <div class="modal" style="max-width:580px;">
     <div class="modal-t" id="nb-modal-title">Neuer Lernbericht</div>
     <input type="hidden" id="nb-edit-id">
     <label class="fl">Lernende/r</label><select class="fi" id="nb-lid"></select>
     <label class="fl">Semester</label>
-    <select class="fi" id="nb-sem">
+    <select class="fi" id="nb-sem" onchange="window.updateThemenList()">
       <option value="1">S1</option><option value="2">S2</option><option value="3">S3</option>
       <option value="4" selected>S4</option><option value="5">S5</option><option value="6">S6</option>
     </select>
     <label class="fl">Handlungskompetenz</label><select class="fi" id="nb-hk"></select>
+
     <label class="fl">Thema / Titel</label>
-    <input class="fi" type="text" id="nb-thema" placeholder="z.B. Check-in bei Gruppenanreise">
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <button class="btn btn-out btn-sm" id="nb-thema-mode-list" onclick="window.setThemaMode('list')" style="border-color:var(--gold);color:var(--gold);">📋 Aus Liste</button>
+      <button class="btn btn-out btn-sm" id="nb-thema-mode-manual" onclick="window.setThemaMode('manual')">✏️ Manuell</button>
+    </div>
+    <!-- Themen-Liste -->
+    <div id="nb-thema-list-section">
+      <div id="nb-themen-groups" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;background:var(--bg);margin-bottom:6px;"></div>
+    </div>
+    <!-- Manuelle Eingabe -->
+    <div id="nb-thema-manual-section" style="display:none;">
+      <input class="fi" type="text" id="nb-thema" placeholder="Eigenes Thema eingeben…">
+    </div>
+    <div id="nb-thema-selected" style="font-size:11px;color:var(--gold);margin-bottom:6px;min-height:18px;"></div>
+
     <label class="fl">Status</label>
     <select class="fi" id="nb-status">
       <option value="eingereicht">📄 Eingereicht</option>
