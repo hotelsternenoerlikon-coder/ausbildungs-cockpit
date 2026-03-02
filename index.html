@@ -858,56 +858,53 @@ function setThemaMode(mode){
 }
 
 function updateThemenList(){
-  const sem = parseInt(document.getElementById('nb-sem')?.value||1);
-  // Semester → Themengruppe(n) ermitteln
-  const container = document.getElementById('nb-themen-groups');
+  var sem = parseInt(document.getElementById('nb-sem')?.value||1);
+  var container = document.getElementById('nb-themen-groups');
   if(!container) return;
-  
-  // Welche Gruppen passen zum Semester?
-  const relevantGroups = Object.entries(LB_THEMEN).filter(([group]) => {
+
+  // Relevante Gruppen für gewähltes Semester
+  var relevantGroups = Object.entries(LB_THEMEN).filter(function([group]){
     if(sem<=2) return group.startsWith('S1')||group.startsWith('S2');
     if(sem<=4) return group.startsWith('S3')||group.startsWith('S4');
     return group.startsWith('S5');
   });
-  const allGroups = Object.entries(LB_THEMEN);
-  
-  let html = '';
-  // Erst relevante Gruppen, dann trennlinie, dann alle
-  const shown = new Set();
-  relevantGroups.forEach(([group, themes]) => {
+  var allGroups = Object.entries(LB_THEMEN);
+  var shown = new Set();
+
+  function makeThemeDiv(t){
+    var sel = nbSelectedThema===t;
+    var bg = sel ? 'rgba(201,168,76,.2)' : 'transparent';
+    var border = sel ? 'var(--gold)' : 'transparent';
+    var color = sel ? 'var(--gold)' : 'var(--cream)';
+    var escapedT = t.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+    var jsT = t.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return '<div onclick="window.selectThema(\''+jsT+'\',this)" '
+      +'style="font-size:11px;padding:5px 8px;border-radius:5px;cursor:pointer;margin-bottom:2px;'
+      +'background:'+bg+';border:1px solid '+border+';color:'+color+';" '
+      +'data-thema="'+escapedT+'">'+t+'</div>';
+  }
+
+  var html = '';
+  relevantGroups.forEach(function([group, themes]){
     shown.add(group);
-    html += `<div style="font-size:10px;color:var(--gold);font-weight:600;margin:6px 0 3px;">${group}</div>`;
-    themes.forEach(t => {
-      const sel = nbSelectedThema===t;
-      html += `<div onclick="window.selectThema('${t.replace(/'/g,"\'")}',this)" 
-        style="font-size:11px;padding:5px 8px;border-radius:5px;cursor:pointer;margin-bottom:2px;
-        background:${sel?'rgba(201,168,76,.2)':'transparent'};
-        border:1px solid ${sel?'var(--gold)':'transparent'};
-        color:${sel?'var(--gold)':'var(--cream)'};"
-        data-thema="${t.replace(/"/g,'&quot;')}">${t}</div>`;
-    });
+    html += '<div style="font-size:10px;color:var(--gold);font-weight:600;margin:6px 0 3px;">'+group+'</div>';
+    themes.forEach(function(t){ html += makeThemeDiv(t); });
   });
-  
-  const otherGroups = allGroups.filter(([g])=>!shown.has(g));
+
+  var otherGroups = allGroups.filter(function([g]){ return !shown.has(g); });
   if(otherGroups.length){
-    html += `<div style="font-size:10px;color:var(--dim);margin:8px 0 3px;border-top:1px solid var(--border);padding-top:6px;">Weitere Semester:</div>`;
-    otherGroups.forEach(([group, themes]) => {
-      html += `<details style="margin-bottom:4px;"><summary style="font-size:10px;color:var(--dim);cursor:pointer;padding:3px;">${group}</summary>`;
-      themes.forEach(t => {
-        const sel = nbSelectedThema===t;
-        html += `<div onclick="window.selectThema('${t.replace(/'/g,"\'")}',this)"
-          style="font-size:11px;padding:5px 8px;border-radius:5px;cursor:pointer;margin:2px 0;
-          background:${sel?'rgba(201,168,76,.2)':'transparent'};
-          border:1px solid ${sel?'var(--gold)':'transparent'};
-          color:${sel?'var(--gold)':'var(--cream)'};"
-          data-thema="${t.replace(/"/g,'&quot;')}">${t}</div>`;
-      });
-      html += `</details>`;
+    html += '<div style="font-size:10px;color:var(--dim);margin:8px 0 3px;border-top:1px solid var(--border);padding-top:6px;">Weitere Semester:</div>';
+    otherGroups.forEach(function([group, themes]){
+      html += '<details style="margin-bottom:4px;">'
+        +'<summary style="font-size:10px;color:var(--dim);cursor:pointer;padding:3px;">'+group+'</summary>';
+      themes.forEach(function(t){ html += makeThemeDiv(t); });
+      html += '</details>';
     });
   }
-  
+
   container.innerHTML = html;
 }
+
 
 function selectThema(thema, el){
   nbSelectedThema = thema;
@@ -1928,23 +1925,21 @@ function openKWDetail(kw, year){
 
   const dateLabel = mon.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit'})+'–'+fri.toLocaleDateString('de-CH',{day:'2-digit',month:'2-digit',year:'numeric'});
 
-  let html = `<div class="modal-t">KW ${kw} · ${dateLabel}<\/div>
-  <div class="card-s" style="margin-bottom:14px;">Abteilung(en) für die ganze Woche wählen. Mehrfachauswahl möglich für geteilte Wochen.<\/div>
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;" id="kw-abt-grid">
-    ${ABTS.map(a=>{
-      const sel=weekAbts.has(a.k);
-      return \`<div class="ep-mini-btn \${a.cls}" 
-        style="padding:10px 8px;text-align:center;font-size:12px;border:2px solid \${sel?'var(--gold)':'transparent'};border-radius:8px;\${sel?'box-shadow:0 0 0 2px rgba(201,168,76,.3);':''}"
-        onclick="window.toggleKWAbt(this,'${a.k}')" data-k="${a.k}" data-sel="\${sel}">
-        \${a.icon}<br>\${a.l}
-      <\/div>\`;
-    }).join('')}
-  <\/div>
-  <div class="modal-actions">
-    <button class="btn btn-out" onclick="window.closeModal('kw-detail')">Abbrechen</button>
-    <button class="btn btn-sm btn-out" onclick="window.clearKWDetail(${kw},${year})" style="border-color:var(--red);color:var(--red-l);">🗑 Löschen</button>
-    <button class="btn btn-gold" onclick="window.saveKWDetail(${kw},${year})">✓ Speichern</button>
-  <\/div>`;
+  // Build abt grid without nested template literals
+  const abtGridHtml = ABTS.map(function(a){
+    var sel = weekAbts.has(a.k);
+    var borderStyle = sel ? 'border:2px solid var(--gold);box-shadow:0 0 0 2px rgba(201,168,76,.3);' : 'border:2px solid transparent;';
+    return '<div class="ep-mini-btn '+a.cls+'" style="padding:10px 8px;text-align:center;font-size:12px;border-radius:8px;cursor:pointer;'+borderStyle+'" onclick="window.toggleKWAbt(this,\''+a.k+'\')" data-k="'+a.k+'" data-sel="'+sel+'">'+a.icon+'<br>'+a.l+'</div>';
+  }).join('');
+
+  var html = '<div class="modal-t">KW '+kw+' &middot; '+dateLabel+'</div>'
+    +'<div class="card-s" style="margin-bottom:14px;">Abteilung(en) f\u00fcr die ganze Woche w\u00e4hlen. Mehrfachauswahl m\u00f6glich.</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;" id="kw-abt-grid">'+abtGridHtml+'</div>'
+    +'<div class="modal-actions">'
+    +'<button class="btn btn-out" onclick="window.closeModal(\'kw-detail\')">Abbrechen</button>'
+    +'<button class="btn btn-sm btn-out" onclick="window.clearKWDetail('+kw+','+year+')" style="border-color:var(--red);color:var(--red-l);">\uD83D\uDDD1 L\u00f6schen</button>'
+    +'<button class="btn btn-gold" onclick="window.saveKWDetail('+kw+','+year+')">\u2713 Speichern</button>'
+    +'</div>';
 
   document.getElementById('kw-detail-body').innerHTML = html;
   openModal('kw-detail');
