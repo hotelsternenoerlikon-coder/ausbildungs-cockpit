@@ -11,8 +11,6 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-
-// NEU:
 import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 
@@ -36,6 +34,7 @@ const fbApp = initializeApp(firebaseConfig);
 const auth  = getAuth(fbApp);
 const db    = getFirestore(fbApp);
 const stor  = getStorage(fbApp);
+
 
 
 // ══════════════════════════════════════════════════════════════
@@ -580,8 +579,6 @@ onAuthStateChanged(auth,async u=>{
     document.getElementById('app').style.display='none';
   }
 });
-
-// Login Funktion:
 async function loginWithGoogle(){
   setAuthErr('');
   try{ await signInWithPopup(auth, googleProvider); }
@@ -591,7 +588,6 @@ async function loginWithMicrosoft(){
   setAuthErr('');
   try{ await signInWithPopup(auth, microsoftProvider); }
   catch(er){ setAuthErr(er.message); }
-}
 }
 function setAuthErr(msg){
   const el=document.getElementById('auth-err');
@@ -2893,6 +2889,89 @@ document.addEventListener('DOMContentLoaded',()=>{
   // SSO login — no password field needed
   document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
 });
+
+// ── Window-Exports (nötig da script type="module" eigenen Scope hat) ──
+window.loginWithGoogle=loginWithGoogle;
+window.loginWithMicrosoft=loginWithMicrosoft;
+window.logout=logout;
+window.showTab=showTab;
+window.selectL=selectL;
+window.toggleLZ=toggleLZ;
+window.toggleAccordion=toggleAccordion;
+window.setBpSem=setBpSem;
+window.toggleOnlyOpen=toggleOnlyOpen;
+window.expandAllHKB=expandAllHKB;
+window.collapseAllHKB=collapseAllHKB;
+window.openNewBericht=openNewBericht;
+window.editBericht=editBericht;
+window.saveBericht=saveBericht;
+window.deleteBericht=deleteBericht;
+window.visiereBericht=visiereBericht;
+window.showBericht=showBericht;
+window.setThemaMode=setThemaMode;
+window.selectThema=selectThema;
+window.updateThemenList=updateThemenList;
+window.uploadAtt=uploadAtt;
+window.delAtt=delAtt;
+window.dropAtt=dropAtt;
+window.setBBSem=setBBSem;
+window.setFinalGrade=setFinalGrade;
+window.setFinalComment=setFinalComment;
+window.setAbtGrade=setAbtGrade;
+window.setAbtComment=setAbtComment;
+window.saveFinalBew=saveFinalBew;
+window.saveAbtBew=saveAbtBew;
+window.generateBB=generateBB;
+window.changeEp=changeEp;
+window.epCellClick=epCellClick;
+window.epMonthClick=epMonthClick;
+window.setDaySlot=setDaySlot;
+window.resetEp=resetEp;
+window.exportJahresplan=exportJahresplan;
+window.openKWDetail=openKWDetail;
+window.closeModal=closeModal;
+window.openModal=openModal;
+window.saveKWDetail=saveKWDetail;
+window.clearKWDetail=clearKWDetail;
+window.toggleKWAbt=toggleKWAbt;
+window.toggleYeAbt=toggleYeAbt;
+window.openYearBulk=openYearBulk;
+window.saveYearEdit=saveYearEdit;
+window.saveYearBulk=saveYearBulk;
+window.openNewTermin=openNewTermin;
+window.editTermin=editTermin;
+window.saveTermin=saveTermin;
+window.deleteTermin=deleteTermin;
+window.erledigeTermin=erledigeTermin;
+window.addLehrling=addLehrling;
+window.openEditLehrling=openEditLehrling;
+window.saveEditLehrling=saveEditLehrling;
+window.deleteLehrling=deleteLehrling;
+window.saveApiKey=saveApiKey;
+window.kiSend=kiSend;
+window.kiKey=kiKey;
+window.kiResize=kiResize;
+window.qAsk=qAsk;
+window.renderBenutzer=renderBenutzer;
+window.saveBenutzer=saveBenutzer;
+window.saveBenutzerEdit=saveBenutzerEdit;
+window.deleteBenutzer=deleteBenutzer;
+window.approvePending=approvePending;
+window.rejectPending=rejectPending;
+window.editBenutzerRow=editBenutzerRow;
+window.exportBackup=exportBackup;
+window.importBackup=importBackup;
+window.toggleTheme=toggleTheme;
+window.toggleLL=toggleLL;
+window.toggleSzAufgabe=toggleSzAufgabe;
+window.saveSzenario=saveSzenario;
+window.deleteSzenario=deleteSzenario;
+window.deleteDefaultSzenario=deleteDefaultSzenario;
+window.resetDefaultSzenarien=resetDefaultSzenarien;
+window.saveAsVorlage=saveAsVorlage;
+window.openAddAufgabe=openAddAufgabe;
+window.saveAufgabe=saveAufgabe;
+window.palDragStart=palDragStart;
 </script>
 <style>
 :root{
