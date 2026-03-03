@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 
 const googleProvider = new GoogleAuthProvider();
@@ -34,6 +34,21 @@ const fbApp = initializeApp(firebaseConfig);
 const auth  = getAuth(fbApp);
 const db    = getFirestore(fbApp);
 const stor  = getStorage(fbApp);
+
+// Redirect-Ergebnis nach Google/Microsoft-Login verarbeiten
+// (wird aufgerufen wenn der User von der SSO-Seite zurückkommt)
+getRedirectResult(auth).then(result => {
+  if(result?.user){
+    // onAuthStateChanged wird automatisch getriggert — nichts weiter nötig
+    console.log('SSO Redirect erfolgreich:', result.user.email);
+  }
+}).catch(er => {
+  // Zeige Fehler auf dem Login-Screen
+  const el = document.getElementById('auth-err');
+  if(el && er.code !== 'auth/redirect-cancelled-by-user'){
+    el.textContent = er.message;
+  }
+});
 
 // ══════════════════════════════════════════════════════════════
 // BILDUNGSPLAN — exakte LZ-Semester-Zuordnung gemäss Gesamtübersicht
@@ -579,19 +594,13 @@ onAuthStateChanged(auth,async u=>{
 });
 async function loginWithGoogle(){
   setAuthErr('');
-  try{
-    await signInWithPopup(auth, googleProvider);
-  }catch(er){
-    if(er.code!=='auth/popup-closed-by-user') setAuthErr(er.message);
-  }
+  try{ await signInWithRedirect(auth, googleProvider); }
+  catch(er){ setAuthErr(er.message); }
 }
 async function loginWithMicrosoft(){
   setAuthErr('');
-  try{
-    await signInWithPopup(auth, microsoftProvider);
-  }catch(er){
-    if(er.code!=='auth/popup-closed-by-user') setAuthErr(er.message);
-  }
+  try{ await signInWithRedirect(auth, microsoftProvider); }
+  catch(er){ setAuthErr(er.message); }
 }
 function setAuthErr(msg){
   const el=document.getElementById('auth-err');
