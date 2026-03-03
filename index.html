@@ -11,13 +11,22 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js';
-import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js';
 
 const googleProvider = new GoogleAuthProvider();
 const microsoftProvider = new OAuthProvider('microsoft.com');
 microsoftProvider.setCustomParameters({ prompt: 'select_account', tenant: 'common' });
-console.log('MS Provider initialisiert:', microsoftProvider);
+
+// Microsoft Redirect-Ergebnis verarbeiten (nach Rückkehr von MS-Login-Seite)
+getRedirectResult(auth).then(result => {
+  if(result?.user) console.log('MS Redirect erfolgreich:', result.user.email);
+}).catch(er => {
+  if(er.code && er.code !== 'auth/redirect-cancelled-by-user'){
+    const el = document.getElementById('auth-err');
+    if(el) el.textContent = 'Fehler: ' + er.code + ' – ' + er.message;
+  }
+});
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, deleteDoc, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject }
@@ -25,7 +34,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject }
 
 const firebaseConfig = {
   apiKey:            "AIzaSyDiuNW9oZ-wSuGp5EZfLn_hBfK3W5iuHYo",
-  authDomain:        "ausbildungs-cockpit.firebaseapp.com",
+  authDomain:        "hotelsternenoerlikon-coder.github.io",
   projectId:         "ausbildungs-cockpit",
   storageBucket:     "ausbildungs-cockpit.firebasestorage.app",
   messagingSenderId: "286858503649",
@@ -587,21 +596,8 @@ async function loginWithGoogle(){
 }
 async function loginWithMicrosoft(){
   setAuthErr('');
-  console.log('MS Login: Start...');
-  try{
-    console.log('MS Login: signInWithPopup wird aufgerufen...');
-    const result = await signInWithPopup(auth, microsoftProvider);
-    console.log('MS Login erfolgreich:', result.user.email);
-  } catch(er){
-    console.error('MS Login Fehler - Code:', er.code);
-    console.error('MS Login Fehler - Message:', er.message);
-    console.error('MS Login Fehler - Vollständig:', JSON.stringify(er, Object.getOwnPropertyNames(er)));
-    if(er.code==='auth/popup-closed-by-user'){
-      setAuthErr('⚠️ Popup wurde geschlossen. Bitte erneut versuchen.');
-    } else {
-      setAuthErr('Fehler: ' + er.code + ' – ' + er.message);
-    }
-  }
+  try{ await signInWithRedirect(auth, microsoftProvider); }
+  catch(er){ setAuthErr('Fehler: ' + er.code + ' – ' + er.message); }
 }
 function setAuthErr(msg){
   const el=document.getElementById('auth-err');
