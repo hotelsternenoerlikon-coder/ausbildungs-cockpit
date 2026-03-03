@@ -2391,7 +2391,7 @@ async function saveBenutzerEdit(bid,email){
   const data={role:isAbt?'abt':'admin',abteilung:isAbt?role:null};
   showLoading(true);
   await upd('users/'+uid()+'/benutzer/'+bid,data);
-  const emailKey=email.replace(/\./g,'_').replace(/@/g,'_at_');
+  const emailKey=toEmailKey(email);
   await wj('emailRoles/'+emailKey,{...data,email,adminUid:uid()});
   const b=S.benutzer.find(x=>x.id===bid);
   if(b){b.role=data.role;b.abteilung=data.abteilung;}
@@ -2430,7 +2430,7 @@ async function saveBenutzer(){
   const data={email,role:isAbt?'abt':'admin',abteilung:isAbt?role:null,adminUid:uid()};
   showLoading(true);
   const id=await add('users/'+uid()+'/benutzer',data);
-  const emailKey=email.replace(/\./g,'_').replace(/@/g,'_at_');
+  const emailKey=toEmailKey(email);
   await wj('emailRoles/'+emailKey,data);
   S.benutzer.push({id,...data});
   showLoading(false);toast('✓ Benutzer hinzugefügt');renderBenutzer();
@@ -2438,14 +2438,17 @@ async function saveBenutzer(){
 async function deleteBenutzer(bid,email){
   if(!confirm('Benutzer und Rolle löschen?'))return;
   await del('users/'+uid()+'/benutzer/'+bid);
-  if(email){const ek=email.replace(/\./g,'_').replace(/@/g,'_at_');await del('emailRoles/'+ek);}
+  if(email){const ek=toEmailKey(email);await del('emailRoles/'+ek);}
   S.benutzer=S.benutzer.filter(x=>x.id!==bid);
   toast('Benutzer gelöscht');renderBenutzer();
 }
 
+// Einheitliche emailKey-Generierung (überall gleich verwenden)
+function toEmailKey(email){ return email.replace(/\./g,'_').replace(/@/g,'_at_'); }
+
 // Lade eigene Rolle beim Login
 async function loadMyRole(){
-  const emailKey=user.email.replace(/\.|\.$/g,'_').replace(/@/g,'_at_').replace(/\./g,'_');
+  const emailKey=toEmailKey(user.email);
   const snap=await rj('emailRoles/'+emailKey);
   if(snap && snap.role==='pending'){
     await signOut(auth);
