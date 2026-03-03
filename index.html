@@ -11,8 +11,12 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged }
+import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+
+const googleProvider = new GoogleAuthProvider();
+const microsoftProvider = new OAuthProvider('microsoft.com');
+microsoftProvider.setCustomParameters({ prompt: 'select_account' });
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, deleteDoc, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject }
@@ -573,30 +577,30 @@ onAuthStateChanged(auth,async u=>{
     document.getElementById('app').style.display='none';
   }
 });
-async function login(){
-  const e=document.getElementById('auth-email').value.trim(),p=document.getElementById('auth-pw').value;
-  document.getElementById('auth-err').textContent='';
-  try{await signInWithEmailAndPassword(auth,e,p);}
-  catch(er){document.getElementById('auth-err').textContent=er.code==='auth/invalid-credential'?'E-Mail oder Passwort falsch.':er.message;}
-}
-async function register(){
-  const e=document.getElementById('auth-email').value.trim(),p=document.getElementById('auth-pw').value;
-  const err=document.getElementById('auth-err');err.textContent='';
-  if(p.length<6){err.textContent='Passwort mind. 6 Zeichen.';return;}
+async function loginWithGoogle(){
+  setAuthErr('');
   try{
-    const cred=await createUserWithEmailAndPassword(auth,e,p);
-    // Registrierung als "pending" markieren — Admin muss freigeben
-    const emailKey=e.replace(/\./g,'_').replace(/@/g,'_at_');
-    await wj('emailRoles/'+emailKey,{email:e,role:'pending',abteilung:null,uid:cred.user.uid});
-    await signOut(auth);
-    document.getElementById('auth-err').style.color='var(--green-l)';
-    err.textContent='✓ Registriert. Bitte warte auf die Freigabe durch den Admin.';
-  }catch(ex){err.textContent=ex.code==='auth/email-already-in-use'?'E-Mail bereits registriert.':ex.message;}
+    await signInWithPopup(auth, googleProvider);
+  }catch(er){
+    if(er.code!=='auth/popup-closed-by-user') setAuthErr(er.message);
+  }
+}
+async function loginWithMicrosoft(){
+  setAuthErr('');
+  try{
+    await signInWithPopup(auth, microsoftProvider);
+  }catch(er){
+    if(er.code!=='auth/popup-closed-by-user') setAuthErr(er.message);
+  }
+}
+function setAuthErr(msg){
+  const el=document.getElementById('auth-err');
+  if(el){el.textContent=msg;el.style.color='';}
 }
 async function logout(){
   await signOut(auth);
   S={lehrlinge:[],lernberichte:[],lzStatus:{},bewertungen:{},einsatzplan:{},termine:[],einstellungen:{},szenarien:[],benutzer:[]};
-  kiHistory=[];userProfile=null;
+  kiHistory=[];userProfile=null;currentLid=null;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2445,10 +2449,9 @@ async function deleteBenutzer(bid,email){
 
 // Lade eigene Rolle beim Login
 async function loadMyRole(){
-  const emailKey=user.email.replace(/\./g,'_').replace(/@/g,'_at_');
+  const emailKey=user.email.replace(/\.|\.$/g,'_').replace(/@/g,'_at_').replace(/\./g,'_');
   const snap=await rj('emailRoles/'+emailKey);
   if(snap && snap.role==='pending'){
-    // Gesperrt — Logout und Fehlermeldung
     await signOut(auth);
     document.getElementById('auth-screen').style.display='flex';
     document.getElementById('app').style.display='none';
@@ -2459,11 +2462,31 @@ async function loadMyRole(){
   if(snap && snap.role && snap.role!=='pending'){
     userProfile={role:snap.role,abteilung:snap.abteilung,adminUid:snap.adminUid||null};
   } else {
-    // Erster Benutzer = Admin — kein adminUid nötig, sharedPath() nutzt uid()
-    userProfile={role:'admin',abteilung:null,adminUid:null};
-    await wj('emailRoles/'+emailKey,{email:user.email,role:'admin',abteilung:null,uid:user.uid});
+    // Erster User oder neuer Google/MS-User → pending (ausser kein Admin existiert → erster wird Admin)
+    const anyAdmin=await checkAnyAdminExists();
+    if(!anyAdmin){
+      // Erster User = Admin
+      userProfile={role:'admin',abteilung:null,adminUid:null};
+      await wj('emailRoles/'+emailKey,{email:user.email,role:'admin',abteilung:null,uid:user.uid,displayName:user.displayName||''});
+    } else {
+      // Neuer User → pending, auf Freigabe warten
+      await wj('emailRoles/'+emailKey,{email:user.email,role:'pending',abteilung:null,uid:user.uid,displayName:user.displayName||''});
+      await signOut(auth);
+      document.getElementById('auth-screen').style.display='flex';
+      document.getElementById('app').style.display='none';
+      const err=document.getElementById('auth-err');
+      if(err){err.style.color='var(--yellow)';err.textContent='⏳ Erstmaliger Login registriert. Bitte warte auf Freigabe durch den Admin.';}
+      return false;
+    }
   }
   return true;
+}
+
+async function checkAnyAdminExists(){
+  try{
+    const snap=await getDocs(collection(db,'emailRoles'));
+    return snap.docs.some(d=>d.data().role==='admin');
+  }catch(e){return false;}
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2844,7 +2867,7 @@ function toggleTheme(){
 // saveYearEdit is now handled by openKWDetail/saveKWDetail
 function saveYearEdit(){if(yearEditKW)saveKWDetail(yearEditKW,yearEditYear);}
 Object.assign(window,{
-  login,register,logout,showTab,selectL,openModal,closeModal,
+  loginWithGoogle,loginWithMicrosoft,logout,showTab,selectL,openModal,closeModal,
   setBpSem,toggleLL,toggleAccordion,toggleLZ,toggleOnlyOpen,expandAllHKB,collapseAllHKB,
   openNewBericht,editBericht,saveBericht,showBericht,visiereBericht,deleteBericht,setThemaMode,updateThemenList,selectThema,
   uploadAtt,dropAtt,delAtt,
@@ -2867,8 +2890,7 @@ Object.assign(window,{
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('today-badge');
   if(badge)badge.textContent=new Date().toLocaleDateString('de-CH',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
-  const pw=document.getElementById('auth-pw');
-  if(pw)pw.addEventListener('keydown',e=>{if(e.key==='Enter')window.login();});
+  // SSO login — no password field needed
   document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
 });
 </script>
@@ -2907,6 +2929,13 @@ a{color:var(--blue-l);}
 #auth-screen{position:fixed;inset:0;background:var(--bg);z-index:500;display:flex;align-items:center;justify-content:center;}
 .auth-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:38px;max-width:360px;width:93%;}
 .auth-err{font-size:12px;color:var(--red-l);margin-top:8px;min-height:16px;}
+.btn-sso{width:100%;display:flex;align-items:center;justify-content:center;gap:12px;padding:11px 16px;border-radius:10px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);font-family:'DM Sans',sans-serif;transition:all .2s;margin-bottom:10px;}
+.btn-google{background:#fff;color:#3c4043;}
+.btn-google:hover{background:#f8f8f8;border-color:#dadce0;box-shadow:0 1px 6px rgba(0,0,0,.15);}
+.btn-microsoft{background:#2f2f2f;color:#fff;}
+.btn-microsoft:hover{background:#404040;border-color:#555;}
+[data-theme="light"] .btn-microsoft{background:#0078d4;border-color:#0078d4;}
+[data-theme="light"] .btn-microsoft:hover{background:#106ebe;}
 
 header{position:sticky;top:0;z-index:100;background:rgba(19,18,16,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 18px;height:54px;display:flex;align-items:center;gap:10px;}
 .logo{display:flex;align-items:center;gap:9px;}
@@ -3174,17 +3203,37 @@ textarea.fi{min-height:60px;resize:vertical;}
 <!-- AUTH -->
 <div id="auth-screen">
   <div class="auth-box">
-    <div style="text-align:center;font-size:28px;margin-bottom:10px;">🏨</div>
+    <div style="text-align:center;font-size:32px;margin-bottom:10px;">🏨</div>
     <div style="font-family:'DM Serif Display',serif;font-size:20px;text-align:center;margin-bottom:2px;">Ausbildungs-Cockpit</div>
-    <div style="font-size:11px;color:var(--dim);text-align:center;margin-bottom:24px;">Hotel-KoFa EFZ</div>
-    <label class="fl">E-Mail</label>
-    <input class="fi" type="email" id="auth-email" placeholder="berufsbildner@hotel.ch" autocomplete="email">
-    <label class="fl">Passwort</label>
-    <input class="fi" type="password" id="auth-pw" placeholder="Passwort">
+    <div style="font-size:11px;color:var(--dim);text-align:center;margin-bottom:28px;">Hotel-KoFa EFZ</div>
+
+    <!-- Google Login -->
+    <button class="btn-sso btn-google" onclick="window.loginWithGoogle()">
+      <svg width="18" height="18" viewBox="0 0 48 48" style="flex-shrink:0;">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        <path fill="none" d="M0 0h48v48H0z"/>
+      </svg>
+      Mit Google anmelden
+    </button>
+
+    <!-- Microsoft Login -->
+    <button class="btn-sso btn-microsoft" onclick="window.loginWithMicrosoft()">
+      <svg width="18" height="18" viewBox="0 0 21 21" style="flex-shrink:0;">
+        <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+        <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+        <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+        <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+      </svg>
+      Mit Microsoft anmelden
+    </button>
+
     <div class="auth-err" id="auth-err"></div>
-    <div style="display:flex;gap:8px;margin-top:14px;">
-      <button class="btn btn-gold" style="flex:1;" onclick="window.login()">Einloggen</button>
-      <button class="btn btn-out" style="flex:1;" onclick="window.register()">Registrieren</button>
+    <div style="font-size:10px;color:var(--dim);text-align:center;margin-top:16px;line-height:1.6;">
+      Erster Login wird automatisch als Admin registriert.<br>
+      Weitere Benutzer müssen durch den Admin freigegeben werden.
     </div>
   </div>
 </div>
